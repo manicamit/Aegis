@@ -1,0 +1,50 @@
+# Core ML
+torch>=2.1.0
+torch-geometric>=2.4.0
+lightgbm>=4.1.0
+shap>=0.44.0
+scikit-learn>=1.3.0
+imbalanced-learn>=0.11.0
+
+# Graph
+networkx>=3.2.0
+
+# Data
+pandas>=2.1.0
+numpy>=1.26.0
+pyarrow>=14.0.0
+
+# API
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+slowapi>=0.1.9
+
+# Dashboard
+plotly>=5.18.0
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+
+# LLM (STR narrative — pluggable provider)
+openai>=1.10.0
+anthropic>=0.20.0
+requests>=2.31.0
+
+# Explainability
+matplotlib>=3.8.0
+
+# Security
+cryptography>=41.0.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0
+
+# Utils
+joblib>=1.3.0
+tqdm>=4.66.0
+kaggle>=1.6.0

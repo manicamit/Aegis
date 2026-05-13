@@ -1,0 +1,24 @@
+{
+  "case_id": "AEGIS-80F454910-40",
+  "account_reference": "80F454910",
+  "risk_score": 40.6,
+  "risk_factors": [
+    "+ Identity Degree (impact: 2.368)",
+    "+ Central node in transaction network (impact: 0.050)",
+    "+ Total Flow In (impact: 0.026)",
+    "+ Cluster Size (impact: 0.023)"
+  ],
+  "str_narrative": "Account 80F454910 (risk score: 40.6/100) was flagged for suspicious activity. Analysis reveals 0 transactions totalling approximately Unknown within unknown. Key risk indicators include: Identity Degree (impact: 2.368); Central node in transaction network (impact: 0.050); Total Flow In (impact: 0.026). This pattern is consistent with FATF-identified money laundering typologies and warrants further investigation by the FIU.",
+  "transaction_count": 0,
+  "total_amount": 0.0,
+  "evidence": {
+    "sankey_json": null,
+    "ego_network_json": null
+  },
+  "generated_at": "2026-05-12T16:25:30.904460",
+  "system_version": "AEGIS-1.0",
+  "compliance": {
+    "fatf_rules_triggered": [],
+    "nist_rmf_alignment": "Govern + Measure"
+  }
+}

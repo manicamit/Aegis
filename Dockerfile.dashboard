@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY dashboard/ ./dashboard/
+COPY pipeline/ ./pipeline/
+COPY models/ ./models/
+COPY features/ ./features/
+COPY security/ ./security/
+
+RUN useradd -m -u 1000 aegis && chown -R aegis:aegis /app
+USER aegis
+
+EXPOSE 8050
+CMD ["python", "-m", "dashboard.app"]

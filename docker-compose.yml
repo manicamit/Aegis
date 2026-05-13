@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-template}
+      - MODEL_DIR=/app/models/saved
+      - DATA_DIR=/app/data/processed
+      - AUDIT_LOG_PATH=/app/logs/audit.jsonl
+    volumes:
+      - ./models/saved:/app/models/saved:ro
+      - ./data/processed:/app/data/processed:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8050:8050"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://api:8000
+      - DATA_DIR=/app/data/processed
+      - MODEL_DIR=/app/models/saved
+      - DASH_DEBUG=false
+    volumes:
+      - ./data/processed:/app/data/processed:ro
+      - ./models/saved:/app/models/saved:ro
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - dashboard
