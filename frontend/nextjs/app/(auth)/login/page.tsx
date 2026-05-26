@@ -31,20 +31,27 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const expired      = searchParams.get('expired') === '1';
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!u || !p) { setErr('Enter both username and password to continue.'); return; }
     setBusy(true);
     setErr(null);
-    setTimeout(() => {
-      if (!u || !p) {
-        setBusy(false);
-        setErr('Enter both username and password to continue.');
-        return;
-      }
-      setSession(role);
-      // TODO (Phase 2): POST /api/auth/login → set httpOnly cookie
-      router.push(ROLE_REDIRECTS[role]);
-    }, 500);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setErr(json.error ?? 'Invalid credentials. Try again.'); return; }
+      const serverRole = json.role as UserRole;
+      setSession(serverRole);
+      router.push(ROLE_REDIRECTS[serverRole]);
+    } catch {
+      setErr('Network error — is the server running?');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

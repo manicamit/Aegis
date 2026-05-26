@@ -28,8 +28,9 @@ export function NavRail({ active }: NavRailProps) {
   const isAdmin = role === 'admin';
   const router = useRouter();
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try { localStorage.removeItem('aegis_role'); } catch { /* ignore */ }
+    await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
   };
 
