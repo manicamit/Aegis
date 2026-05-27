@@ -17,6 +17,7 @@ const ADMIN_ITEMS = [
   { id: 'heartbeat',  href: '/heartbeat',  icon: 'activity', label: 'Service Health' },
   { id: 'escalation', href: '/escalation', icon: 'layers',   label: 'Escalation Queue' },
   { id: 'benchmarks', href: '/benchmarks', icon: 'spark',    label: 'Benchmarks' },
+  { id: 'settings',   href: '/settings',   icon: 'cog',      label: 'Settings' },
 ];
 
 interface NavRailProps {
