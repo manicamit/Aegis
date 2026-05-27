@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/shared/Icon';
-import { WORKSPACE_CASE } from '@/lib/workspace-data';
+import type { WorkspaceCase } from '@/lib/workspace-data';
 
-export function CaseSidebar() {
-  const c = WORKSPACE_CASE;
+export function CaseSidebar({ caseData }: { caseData: WorkspaceCase }) {
+  const c = caseData;
   const [seconds, setSeconds] = useState(8 * 60 + 14);
   useEffect(() => {
     const t = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
