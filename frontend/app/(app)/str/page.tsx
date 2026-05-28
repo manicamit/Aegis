@@ -75,6 +75,7 @@ export default async function STRPage({ searchParams }: STRPageProps) {
   if (!apiCase) {
     return <STRView dossier={FIXTURE_DOSSIER} narrative={FIXTURE_NARRATIVE} />;
   }
+  const plainEnglish = apiCase.plain_english;
 
   const fatfPairs: [string, string][] = apiCase.compliance.fatf_rules_triggered.length > 0
     ? apiCase.compliance.fatf_rules_triggered.map(code => [code, code])
@@ -96,5 +97,5 @@ export default async function STRPage({ searchParams }: STRPageProps) {
     },
   };
 
-  return <STRView dossier={dossier} narrative={apiCase.str_narrative} />;
+  return <STRView dossier={dossier} narrative={apiCase.str_narrative} plainEnglish={plainEnglish} />;
 }

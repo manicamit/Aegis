@@ -27,15 +27,17 @@ export interface STRDossier {
 interface STRViewProps {
   dossier: STRDossier;
   narrative: string;
+  plainEnglish?: string;
 }
 
-export default function STRView({ dossier, narrative }: STRViewProps) {
+export default function STRView({ dossier, narrative, plainEnglish }: STRViewProps) {
   const DOSSIER = dossier;
   const [text, setText]     = useState(narrative);
   const [filed, setFiled]   = useState(false);
   const [edited, setEdited] = useState(false);
   const [copied, setCopied] = useState(false);
   const [source, setSource] = useState<'pre-generated' | 'live'>(DOSSIER.source);
+  const [showPlain, setShowPlain] = useState(true);
 
   const wordCount = text.split(/\s+/).filter(Boolean).length;
   const minWords  = 250;
@@ -123,6 +125,46 @@ export default function STRView({ dossier, narrative }: STRViewProps) {
                 ))}
               </div>
             </section>
+
+            {plainEnglish && (
+              <section>
+                <h2>
+                  Plain English summary
+                  <span style={{ float: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowPlain(s => !s)}
+                      style={{
+                        font: "700 11px/1 'Manrope'", letterSpacing: '.08em',
+                        textTransform: 'uppercase',
+                        background: 'transparent', border: '1px solid var(--line-strong)',
+                        borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+                        color: 'var(--ink-2)',
+                      }}
+                    >
+                      {showPlain ? 'Hide · show technical only →' : 'Show plain English →'}
+                    </button>
+                  </span>
+                </h2>
+                {showPlain && (
+                  <div style={{
+                    background: 'var(--brand-soft)',
+                    border: '1px solid var(--brand)',
+                    borderRadius: 10, padding: '14px 18px',
+                    font: "600 14px/1.55 'Manrope'", color: 'var(--ink)',
+                    marginBottom: 8,
+                  }}>
+                    {plainEnglish}
+                    <div style={{
+                      marginTop: 8, font: "500 11px/1 'JetBrains Mono'",
+                      color: 'var(--ink-3)', letterSpacing: '.04em',
+                    }}>
+                      Generated from SHAP factors by plain_english.py
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
 
             <section>
               <h2>2 · Narrative <span style={{ float: 'right', font: "600 11px/1 'Manrope'", color: edited ? 'var(--warn)' : 'var(--ink-3)', letterSpacing: '.06em' }}>{edited ? 'Edited locally' : 'Pre-generated · unmodified'}</span></h2>

@@ -5,7 +5,14 @@ import { SHAP_FEATURES, WORKSPACE_CASE } from '@/lib/workspace-data';
 
 type ShapView = 'chart' | 'text';
 
-export function ShapPanel() {
+export interface ShapPanelProps {
+  /** Plain-English summary from the API (overrides the canned text). */
+  plainEnglish?: string;
+  /** Real SHAP factors from the API for the side-panel info. */
+  riskFactors?: string[];
+}
+
+export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
   const [view, setView] = useState<ShapView>('chart');
 
   return (
@@ -55,9 +62,38 @@ export function ShapPanel() {
         </div>
       ) : (
         <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-2)' }}>
-          <p>The model is highly confident this account is laundering funds. The strongest signal is a <b>coordinated burst transfer</b> of 12 transactions in a 4-hour window, all just below the ₹50 000 reporting threshold (structuring).</p>
-          <p>Network features compound this: the account is two hops from <b>mule cluster S-19</b>, a previously confirmed laundering ring, via GAT-detected proximity (0.74).</p>
-          <p>Temporal features reinforce: the account had been <b>dormant for 217 days</b> and was reactivated only 21 hours before the burst — a textbook activation pattern.</p>
+          {plainEnglish ? (
+            <>
+              <p style={{ fontWeight: 600, color: 'var(--ink)' }}>{plainEnglish}</p>
+              {riskFactors && riskFactors.length > 0 && (
+                <>
+                  <div style={{
+                    font: "700 11px/1 'Manrope'", letterSpacing: '.16em',
+                    textTransform: 'uppercase', color: 'var(--ink-3)',
+                    marginTop: 14, marginBottom: 8,
+                  }}>
+                    Contributing factors
+                  </div>
+                  <ul style={{ paddingLeft: 18, margin: 0 }}>
+                    {riskFactors.slice(0, 6).map((f, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        {f.replace(/^\+\s*/, '').replace(/\s*\(impact:[^)]+\)$/, '')}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p style={{ marginTop: 14, fontSize: 12, color: 'var(--ink-4)' }}>
+                Generated from SHAP factors by <code>dashboard/components/plain_english.py</code>.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>The model is highly confident this account is laundering funds. The strongest signal is a <b>coordinated burst transfer</b> of 12 transactions in a 4-hour window, all just below the ₹50 000 reporting threshold (structuring).</p>
+              <p>Network features compound this: the account is two hops from <b>mule cluster S-19</b>, a previously confirmed laundering ring, via GAT-detected proximity (0.74).</p>
+              <p>Temporal features reinforce: the account had been <b>dormant for 217 days</b> and was reactivated only 21 hours before the burst — a textbook activation pattern.</p>
+            </>
+          )}
         </div>
       )}
 

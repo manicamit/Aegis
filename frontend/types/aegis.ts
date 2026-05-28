@@ -1,4 +1,4 @@
-export type UserRole = 'investigator' | 'analyst' | 'admin';
+export type UserRole = 'investigator' | 'analyst' | 'admin' | 'branch_manager';
 export type NodeType = 'account' | 'upi' | 'device' | 'branch' | 'ip' | 'merchant';
 export type SignalType = 'device' | 'ip' | 'beneficiary' | 'upi' | 'phone';
 export type ClusterSeverity = 'danger' | 'warn' | 'info';

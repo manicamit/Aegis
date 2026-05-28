@@ -20,4 +20,5 @@ export const ROLE_REDIRECTS: Record<UserRole, string> = {
   investigator: '/alerts',
   analyst: '/alerts',
   admin: '/escalation',
+  branch_manager: '/mobile',
 };

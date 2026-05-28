@@ -8,15 +8,17 @@ import type { UserRole } from '@/types/aegis';
 import { Suspense } from 'react';
 
 const ROLES: { id: UserRole; label: string; desc: string }[] = [
-  { id: 'investigator', label: 'Investigator', desc: 'Triage · file STRs · export cases' },
-  { id: 'analyst',      label: 'Analyst',      desc: 'View-only · graphs · metrics' },
-  { id: 'admin',        label: 'Admin',         desc: 'Full access · users · audit · escalations' },
+  { id: 'branch_manager', label: 'Branch Mgr',  desc: 'Mobile triage · Approve/Flag/Freeze' },
+  { id: 'investigator',   label: 'Investigator', desc: 'Triage · file STRs · export cases' },
+  { id: 'analyst',        label: 'Analyst',      desc: 'View-only · graphs · metrics' },
+  { id: 'admin',          label: 'Admin',        desc: 'Full access · users · audit · escalations' },
 ];
 
 const ROLE_GREETINGS: Record<UserRole, string> = {
-  investigator: 'Welcome back, investigator.',
-  analyst:      'Welcome back, analyst.',
-  admin:        'Welcome back, admin.',
+  investigator:   'Welcome back, investigator.',
+  analyst:        'Welcome back, analyst.',
+  admin:          'Welcome back, admin.',
+  branch_manager: 'Welcome back, branch manager.',
 };
 
 function LoginForm() {
@@ -96,7 +98,7 @@ function LoginForm() {
 
         <div className="login-field">
           <label>Sign in as</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6 }}>
             {ROLES.map(r => (
               <button
                 key={r.id}

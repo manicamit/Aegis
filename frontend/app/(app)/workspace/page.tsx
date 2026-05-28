@@ -5,7 +5,7 @@ import { CaseSidebar } from '@/components/workspace/CaseSidebar';
 import { ShapPanel } from '@/components/workspace/ShapPanel';
 import { GraphPane } from '@/components/workspace/GraphPane';
 import { WORKSPACE_CASE } from '@/lib/workspace-data';
-import { fetchCase, fetchCases, adaptToWorkspaceCase } from '@/lib/cases';
+import { fetchCase, fetchCases, adaptToWorkspaceCase, type ApiCase } from '@/lib/cases';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +17,14 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
   const sp = await searchParams;
 
   let caseData = WORKSPACE_CASE;
+  let apiCase: ApiCase | null = null;
   if (sp.case) {
-    const apiCase = await fetchCase(sp.case);
-    if (apiCase) caseData = adaptToWorkspaceCase(apiCase);
+    apiCase = await fetchCase(sp.case);
   } else {
     const cases = await fetchCases(1);
-    if (cases.length > 0) {
-      const first = await fetchCase(cases[0].id);
-      if (first) caseData = adaptToWorkspaceCase(first);
-    }
+    if (cases.length > 0) apiCase = await fetchCase(cases[0].id);
   }
+  if (apiCase) caseData = adaptToWorkspaceCase(apiCase);
 
   return (
     <>
@@ -48,7 +46,10 @@ export default async function WorkspacePage({ searchParams }: WorkspacePageProps
         <div className="ws">
           <CaseSidebar caseData={caseData} />
           <GraphPane />
-          <ShapPanel />
+          <ShapPanel
+            plainEnglish={apiCase?.plain_english}
+            riskFactors={apiCase?.risk_factors}
+          />
         </div>
       </div>
     </>
