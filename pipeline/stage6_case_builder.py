@@ -125,7 +125,7 @@ def _generate_narrative_template(prompt_data: dict) -> str:
 
 
 def _generate_narrative_openai(prompt: str) -> str:
-    """Generate narrative using OpenAI-compatible API."""
+    """Generate narrative using OpenAI-compatible API. Wrapped in DLQ at call site."""
     from openai import OpenAI
     client = OpenAI(
         api_key=os.environ.get("OPENAI_API_KEY"),
@@ -140,7 +140,7 @@ def _generate_narrative_openai(prompt: str) -> str:
 
 
 def _generate_narrative_anthropic(prompt: str) -> str:
-    """Generate narrative using Anthropic API."""
+    """Generate narrative using Anthropic API. Wrapped in DLQ at call site."""
     import anthropic
     client = anthropic.Anthropic()
     message = client.messages.create(
@@ -151,7 +151,7 @@ def _generate_narrative_anthropic(prompt: str) -> str:
 
 
 def _generate_narrative_ollama(prompt: str) -> str:
-    """Generate narrative using local Ollama."""
+    """Generate narrative using local Ollama. Wrapped in DLQ at call site."""
     import requests
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
     model = os.environ.get("OLLAMA_MODEL", "llama3")
@@ -193,52 +193,99 @@ Write a concise STR narrative (2-3 sentences) for FIU submission. Be specific. U
 
 def generate_str_narrative(account_id, risk_score, shap_factors,
                            transaction_summary, graph_evidence):
-    """Generate STR narrative using configured LLM provider with fallback."""
+    """Generate STR narrative using configured LLM provider with template fallback.
+
+    LLM failures are pushed to the dead-letter queue (monitoring.heartbeat.dlq_push)
+    so an operator can retry without losing the request.
+    """
     provider = os.environ.get("LLM_PROVIDER", "template").lower()
-    
-    if provider == "template":
-        prompt_data = {
-            "account_id": account_id,
-            "risk_score": risk_score,
-            "factors": shap_factors,
-            **transaction_summary,
-            **graph_evidence,
-        }
-        return _generate_narrative_template(prompt_data)
-    
-    prompt = _build_llm_prompt(account_id, risk_score, shap_factors,
-                                transaction_summary, graph_evidence)
-    
-    try:
-        if provider == "openai":
-            return _generate_narrative_openai(prompt)
-        elif provider == "anthropic":
-            return _generate_narrative_anthropic(prompt)
-        elif provider == "ollama":
-            return _generate_narrative_ollama(prompt)
-    except Exception as e:
-        logger.warning(f"LLM ({provider}) failed: {e}. Using template fallback.")
-    
-    # Fallback
+
     prompt_data = {
         "account_id": account_id, "risk_score": risk_score,
         "factors": shap_factors, **transaction_summary, **graph_evidence,
     }
-    return _generate_narrative_template(prompt_data)
+
+    if provider == "template":
+        return _generate_narrative_template(prompt_data)
+
+    prompt = _build_llm_prompt(account_id, risk_score, shap_factors,
+                                transaction_summary, graph_evidence)
+
+    provider_fns = {
+        "openai": _generate_narrative_openai,
+        "anthropic": _generate_narrative_anthropic,
+        "ollama": _generate_narrative_ollama,
+    }
+    fn = provider_fns.get(provider)
+    if fn is None:
+        logger.warning("Unknown LLM_PROVIDER=%r; using template", provider)
+        return _generate_narrative_template(prompt_data)
+
+    try:
+        return fn(prompt)
+    except Exception as e:
+        logger.warning("LLM (%s) failed: %s. Using template fallback.", provider, e)
+        try:
+            from monitoring.heartbeat import dlq_push
+            dlq_push(
+                service=f"llm_{provider}",
+                op="str_generate",
+                error=str(e),
+                payload={
+                    "account_id": account_id,
+                    "risk_score": risk_score,
+                    "provider": provider,
+                },
+            )
+        except Exception:
+            pass
+        return _generate_narrative_template(prompt_data)
 
 
 def build_case_dossier(account_id, risk_score, narrative, shap_factors,
                         transaction_df, sankey_json=None, ego_json=None,
-                        rules_triggered=None):
-    """Assemble complete investigation package."""
-    return {
-        "case_id": f"AEGIS-{account_id}-{int(risk_score)}",
+                        rules_triggered=None, aggregation=None,
+                        shap_top_features=None, case_details=None):
+    """Assemble complete investigation package.
+
+    `aggregation` is the dict produced by `aggregate_alerts_to_cases` for this
+    account; if present its priority_score, n_alerts_collapsed, etc. are merged in.
+    `shap_top_features` should be the raw [(feature, value), ...] from
+    compute_shap_explanation (used to build the plain English summary).
+    `case_details` carries context (time_window, dormancy_days, n_branches, ...)
+    consumed by plain_english.CLAUSE_TEMPLATES.
+    """
+    from dashboard.components.plain_english import generate_plain_english
+
+    total_amount = (
+        float(transaction_df["Amount Paid"].sum())
+        if transaction_df is not None and len(transaction_df) > 0
+        else 0.0
+    )
+    case_details = case_details or {}
+
+    plain_english = generate_plain_english(
+        account_id=account_id,
+        total_amount=total_amount,
+        shap_top_features=shap_top_features or shap_factors or [],
+        case_details=case_details,
+    )
+
+    case_id = (
+        aggregation.get("case_id") if aggregation
+        else f"AEGIS-{account_id}-{int(risk_score)}"
+    )
+
+    dossier = {
+        "case_id": case_id,
         "account_reference": account_id,
+        "account_id": account_id,
         "risk_score": risk_score,
+        "plain_english": plain_english,
         "risk_factors": shap_factors,
         "str_narrative": narrative,
         "transaction_count": len(transaction_df) if transaction_df is not None else 0,
-        "total_amount": float(transaction_df["Amount Paid"].sum()) if transaction_df is not None else 0,
+        "total_amount": total_amount,
         "evidence": {
             "sankey_json": sankey_json,
             "ego_network_json": ego_json,
@@ -250,84 +297,159 @@ def build_case_dossier(account_id, risk_score, narrative, shap_factors,
             "nist_rmf_alignment": "Govern + Measure",
         },
     }
+    if aggregation:
+        dossier.update({
+            "priority_score": aggregation.get("priority_score"),
+            "n_alerts_collapsed": aggregation.get("n_alerts_collapsed"),
+            "rules_triggered": aggregation.get("rules_triggered", []),
+            "max_severity_weight": aggregation.get("max_severity_weight"),
+            "status": aggregation.get("status", "pending"),
+            "assigned_to": aggregation.get("assigned_to", "branch_manager"),
+            "unique_counterparties": aggregation.get("unique_counterparties", 0),
+        })
+    return dossier
 
 
 def run_stage6(data_dir="data/processed", model_dir="models/saved", top_k=20):
-    """Generate case dossiers for top-K risky accounts."""
+    """Generate case dossiers for top-K aggregated cases (priority-ordered)."""
     from models.lgbm_model import load_lgbm_model
-    
+    from pipeline.stage5_fusion import aggregate_alerts_to_cases
+    from security.audit_logger import register_pending_alert
+
     logger.info("=== AEGIS Stage 6 — Case Builder ===")
-    
+
     model, metrics, feature_names = load_lgbm_model(model_dir)
     risk_df = pd.read_parquet(os.path.join(data_dir, "risk_scores.parquet"))
     feature_df = pd.read_parquet(os.path.join(data_dir, "feature_matrix.parquet"))
     tx_df = pd.read_parquet(os.path.join(data_dir, "transactions.parquet"))
-    
-    top_accounts = risk_df.head(top_k)
+
+    rule_path = os.path.join(data_dir, "rule_flags.parquet")
+    if os.path.exists(rule_path):
+        rule_df = pd.read_parquet(rule_path)
+    else:
+        logger.warning("rule_flags.parquet missing — building cases from risk only.")
+        rule_df = pd.DataFrame({"Account": risk_df["Account"], "rule_unknown": 1, "rules_triggered": 1})
+
+    aggregated = aggregate_alerts_to_cases(rule_df, risk_df, transaction_df=tx_df)
+    aggregated = aggregated[:top_k]
+    logger.info("  Building dossiers for top %d aggregated cases", len(aggregated))
+
+    exclude = {"Account", "is_fraud"}
+    feat_cols = [c for c in feature_df.columns if c not in exclude]
     cases = []
-    
-    for _, row in top_accounts.iterrows():
-        account_id = str(row["Account"])
-        risk_score = float(row["risk_score"])
-        
-        # Get SHAP explanation
+
+    for agg in aggregated:
+        account_id = agg["account_id"]
+        risk_score = agg["gnn_risk_score"]
+
         acct_features = feature_df[feature_df["Account"].astype(str) == account_id]
         if len(acct_features) == 0:
+            logger.warning("No feature row for %s; skipping dossier", account_id)
             continue
-        
-        exclude = {"Account", "is_fraud"}
-        feat_cols = [c for c in feature_df.columns if c not in exclude]
+
         X_instance = acct_features[feat_cols].values.astype(np.float32)
-        
         try:
-            top_feats, base_val = compute_shap_explanation(model, X_instance, feat_cols)
+            top_feats, _base = compute_shap_explanation(model, X_instance, feat_cols)
             explanation = format_risk_explanation(top_feats, account_id, risk_score)
         except Exception as e:
-            logger.warning(f"SHAP failed for {account_id}: {e}")
+            logger.warning("SHAP failed for %s: %s", account_id, e)
             explanation = {"account_id": account_id, "risk_score": risk_score, "factors": []}
             top_feats = []
-        
-        # Transaction summary
+
         acct_tx = tx_df[tx_df["Account"].astype(str) == account_id]
         tx_summary = {
             "total_amount": f"₹{acct_tx['Amount Paid'].sum():,.0f}" if len(acct_tx) > 0 else "Unknown",
             "tx_count": len(acct_tx),
-            "time_window": f"{acct_tx['Timestamp'].min()} to {acct_tx['Timestamp'].max()}" if len(acct_tx) > 0 else "unknown",
+            "time_window": (
+                f"{acct_tx['Timestamp'].min()} to {acct_tx['Timestamp'].max()}"
+                if len(acct_tx) > 0 else "unknown"
+            ),
             "account_count": acct_tx["Account.1"].nunique() if len(acct_tx) > 0 else 0,
         }
-        
+
+        layering_depth = (
+            int(acct_features["layering_depth"].iloc[0])
+            if "layering_depth" in acct_features.columns else 0
+        )
+        dormancy_days = (
+            int(acct_features["last_tx_days_max"].iloc[0])
+            if "last_tx_days_max" in acct_features.columns else 0
+        )
         graph_evidence = {
-            "layering_depth": int(acct_features.get("layering_depth", pd.Series([0])).values[0]) if "layering_depth" in acct_features.columns else 0,
-            "circular": bool(acct_features.get("circular_score", pd.Series([0])).values[0] > 0) if "circular_score" in acct_features.columns else False,
+            "layering_depth": layering_depth,
+            "circular": bool(
+                acct_features["circular_score"].iloc[0] > 0
+                if "circular_score" in acct_features.columns else False
+            ),
             "flagged_neighbours": 0,
-            "dormancy_days": int(acct_features.get("last_tx_days_max", pd.Series([0])).values[0]) if "last_tx_days_max" in acct_features.columns else 0,
+            "dormancy_days": dormancy_days,
         }
-        
+
+        case_details = {
+            "time_window": _summarize_time_window(acct_tx),
+            "layering_depth": layering_depth,
+            "last_tx_days": dormancy_days,
+            "last_tx_days_max": dormancy_days,
+            "dormancy_days": dormancy_days,
+            "n_branches": agg.get("unique_counterparties", 0),
+        }
+
         narrative = generate_str_narrative(
             account_id, risk_score, explanation["factors"],
             tx_summary, graph_evidence,
         )
-        
+
         case = build_case_dossier(
             account_id, risk_score, narrative, explanation["factors"],
-            acct_tx, rules_triggered=[],
+            acct_tx,
+            rules_triggered=agg["rules_triggered"],
+            aggregation=agg,
+            shap_top_features=top_feats,
+            case_details=case_details,
         )
         cases.append(case)
-        logger.info(f"  Case {case['case_id']}: score={risk_score:.1f}")
-    
+        register_pending_alert(case["case_id"], "branch_manager",
+                               metadata={"account_id": account_id,
+                                         "priority_score": agg["priority_score"]})
+        logger.info("  Case %s: priority=%.3f rules=%d",
+                    case["case_id"], agg["priority_score"], agg["n_alerts_collapsed"])
+
     # Save cases
     os.makedirs(os.path.join(data_dir, "cases"), exist_ok=True)
     for case in cases:
         path = os.path.join(data_dir, "cases", f"{case['case_id']}.json")
         with open(path, "w") as f:
             json.dump(case, f, indent=2, default=str)
-    
+
     all_cases_path = os.path.join(data_dir, "all_cases.json")
     with open(all_cases_path, "w") as f:
         json.dump(cases, f, indent=2, default=str)
-    
-    logger.info(f"Generated {len(cases)} case dossiers.")
+
+    logger.info("Generated %d case dossiers.", len(cases))
     return cases
+
+
+def _summarize_time_window(acct_tx) -> str:
+    """Short human-readable window like '4h 02m' or '2 days'."""
+    if acct_tx is None or len(acct_tx) == 0 or "Timestamp" not in acct_tx.columns:
+        return "a short period"
+    try:
+        ts_min = pd.to_datetime(acct_tx["Timestamp"].min())
+        ts_max = pd.to_datetime(acct_tx["Timestamp"].max())
+        delta = ts_max - ts_min
+        secs = int(delta.total_seconds())
+        if secs <= 0:
+            return "under a minute"
+        if secs < 3600:
+            return f"{secs // 60} minutes"
+        if secs < 86400:
+            h = secs // 3600
+            m = (secs % 3600) // 60
+            return f"{h}h {m:02d}m"
+        days = secs // 86400
+        return f"{days} day{'s' if days != 1 else ''}"
+    except Exception:
+        return "a short period"
 
 
 if __name__ == "__main__":

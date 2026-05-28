@@ -6,9 +6,114 @@ import pandas as pd
 import numpy as np
 import os
 import logging
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+# Rule-name → human-readable severity mapping (used by alert aggregator)
+RULE_SEVERITY = {
+    "rule_round_tripping":     "HIGH",
+    "rule_fan_in_fan_out":     "HIGH",
+    "rule_structuring":        "HIGH",
+    "rule_rapid_movement":     "MEDIUM",
+    "rule_dormant_activation": "MEDIUM",
+    "rule_profile_mismatch":   "MEDIUM",
+}
+SEVERITY_WEIGHT = {"HIGH": 1.0, "MEDIUM": 0.5, "LOW": 0.2}
+MAX_RULES = 6  # used to normalise rule_score
+
+
+def aggregate_alerts_to_cases(
+    rule_df: pd.DataFrame,
+    risk_df: pd.DataFrame,
+    transaction_df: Optional[pd.DataFrame] = None,
+    min_priority: float = 0.0,
+) -> List[Dict[str, Any]]:
+    """Collapse per-rule flags + per-account risk score into one case per entity.
+
+    Inputs:
+      rule_df: from data/processed/rule_flags.parquet (one row/account,
+               `rule_<name>` 0/1 columns + `rules_triggered` count)
+      risk_df: from data/processed/risk_scores.parquet (Account + risk_score in 0..100)
+      transaction_df: optional; used for total_amount / counterparty count
+
+    Returns: list of case dicts with priority_score, n_alerts_collapsed, rules_triggered.
+    """
+    if rule_df is None or len(rule_df) == 0:
+        return []
+
+    rule_df = rule_df.copy()
+    rule_df["Account"] = rule_df["Account"].astype(str)
+    risk_df = risk_df.copy() if risk_df is not None else pd.DataFrame(
+        columns=["Account", "risk_score"]
+    )
+    risk_df["Account"] = risk_df["Account"].astype(str)
+
+    risk_lookup = dict(zip(risk_df["Account"], risk_df["risk_score"]))
+
+    tx_lookup: Dict[str, Dict[str, Any]] = {}
+    if transaction_df is not None and len(transaction_df) > 0:
+        tx = transaction_df.copy()
+        tx["Account"] = tx["Account"].astype(str)
+        tx["Account.1"] = tx["Account.1"].astype(str)
+        amt_col = "amount_inr" if "amount_inr" in tx.columns else "Amount Paid"
+        per_acct = tx.groupby("Account").agg(
+            total_amount=(amt_col, "sum"),
+            tx_count=("Account", "size"),
+            unique_counterparties=("Account.1", "nunique"),
+        )
+        tx_lookup = per_acct.to_dict(orient="index")
+
+    rule_cols = [c for c in rule_df.columns if c.startswith("rule_")]
+    cases: List[Dict[str, Any]] = []
+
+    for _, row in rule_df.iterrows():
+        triggered = [c for c in rule_cols if int(row.get(c, 0)) == 1]
+        n_alerts = len(triggered)
+        if n_alerts == 0:
+            continue
+
+        account_id = str(row["Account"])
+        gnn_risk = float(risk_lookup.get(account_id, 0.0)) / 100.0
+        rule_score = min(1.0, n_alerts / MAX_RULES)
+        max_severity_weight = max(
+            (SEVERITY_WEIGHT.get(RULE_SEVERITY.get(r, "LOW"), 0.2) for r in triggered),
+            default=0.2,
+        )
+
+        priority = round(
+            0.4 * gnn_risk + 0.3 * rule_score + 0.3 * max_severity_weight, 4
+        )
+        if priority < min_priority:
+            continue
+
+        tx_info = tx_lookup.get(account_id, {})
+        case_id = f"AEGIS-{account_id}-{int(priority * 100)}"
+
+        cases.append({
+            "case_id": case_id,
+            "account_id": account_id,
+            "priority_score": priority,
+            "risk_score_100": int(round(priority * 100)),
+            "gnn_risk_score": round(gnn_risk * 100, 2),
+            "n_alerts_collapsed": n_alerts,
+            "rules_triggered": triggered,
+            "total_amount": float(tx_info.get("total_amount", 0.0) or 0.0),
+            "tx_count": int(tx_info.get("tx_count", 0) or 0),
+            "unique_counterparties": int(tx_info.get("unique_counterparties", 0) or 0),
+            "max_severity_weight": round(max_severity_weight, 2),
+            "status": "pending",
+            "assigned_to": "branch_manager",
+        })
+
+    cases.sort(key=lambda c: c["priority_score"], reverse=True)
+    logger.info(
+        "Aggregated %d cases from %d flagged accounts",
+        len(cases),
+        int((rule_df[rule_cols].sum(axis=1) > 0).sum()) if rule_cols else 0,
+    )
+    return cases
 
 
 def assemble_features(data_dir="data/processed"):

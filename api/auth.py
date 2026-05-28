@@ -19,14 +19,18 @@ except ImportError:
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "60"))
+DEMO_MODE = os.environ.get("AEGIS_DEMO_MODE", "0") == "1"
 
 security = HTTPBearer(auto_error=False)
 
 ROLES = {
-    "investigator": ["read:alerts", "read:cases", "write:cases"],
-    "analyst":      ["read:alerts", "read:cases"],
-    "admin":        ["read:alerts", "read:cases", "write:cases",
-                     "write:config", "read:metrics"],
+    "branch_manager": ["read:alerts", "write:alert_action", "read:cases"],
+    "investigator":   ["read:alerts", "read:cases", "write:cases",
+                       "write:alert_action"],
+    "analyst":        ["read:alerts", "read:cases", "read:metrics"],
+    "admin":          ["read:alerts", "read:cases", "write:cases",
+                       "write:config", "read:metrics", "write:alert_action",
+                       "manage:escalation", "manage:dlq"],
 }
 
 
@@ -44,6 +48,7 @@ DEMO_USERS = {
     "admin": {"password_hash": _hash_password("admin123"), "role": "admin"},
     "investigator": {"password_hash": _hash_password("invest123"), "role": "investigator"},
     "analyst": {"password_hash": _hash_password("analyst123"), "role": "analyst"},
+    "branch_manager": {"password_hash": _hash_password("branch123"), "role": "branch_manager"},
 }
 
 
@@ -59,8 +64,12 @@ def verify_token(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ) -> dict:
     if credentials is None:
-        # Allow unauthenticated access for demo
-        return {"sub": "demo", "role": "admin"}
+        if DEMO_MODE:
+            return {"sub": "demo", "role": "admin"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+        )
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
