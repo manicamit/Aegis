@@ -236,7 +236,8 @@ def check_escalations() -> list[dict]:
             and not info["escalated"]
         ]
     for alert_id, info in overdue:
-        next_role = ESCALATION_MAP.get(info["assigned_role"], "admin")
+        from_role = info["assigned_role"]  # capture before mutation
+        next_role = ESCALATION_MAP.get(from_role, "admin")
         with _lock:
             _pending_alerts[alert_id]["assigned_role"] = next_role
             _pending_alerts[alert_id]["escalated"] = True
@@ -244,19 +245,19 @@ def check_escalations() -> list[dict]:
                 "kind": "escalate",
                 "alert_id": alert_id,
                 "to_role": next_role,
-                "from_role": info["assigned_role"],
+                "from_role": from_role,
                 "manual": False,
                 "at": now,
             })
         audit_log("auto_escalation", "system", {
             "alert_id": alert_id,
-            "from_role": info["assigned_role"],
+            "from_role": from_role,
             "to_role": next_role,
             "overdue_seconds": int(now - info["created_at"]),
         })
         fired.append({
             "alert_id": alert_id,
-            "from_role": info["assigned_role"],
+            "from_role": from_role,
             "to_role": next_role,
         })
         if ESCALATION_WEBHOOK:

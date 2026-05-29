@@ -1,0 +1,37 @@
+{
+  "case_id": "AEGIS-0000C8334-63",
+  "account_reference": "0000C8334",
+  "account_id": "0000C8334",
+  "risk_score": 71.4,
+  "plain_english": "0000C8334 moved \u20b93.0L in 165 days \u2014 gat emb 1, gat emb 17, gat emb 4, and rules triggered.",
+  "risk_factors": [
+    "+ Gat Emb 1 (impact: 1.151)",
+    "+ Gat Emb 17 (impact: 0.896)",
+    "+ Gat Emb 4 (impact: 0.757)",
+    "+ Multiple FATF rules triggered (impact: 0.211)"
+  ],
+  "str_narrative": "Account 0000C8334 (risk score: 71.4/100) was flagged for suspicious activity. Analysis reveals 2 transactions totalling approximately \u20b9295,010 within 2024-07-05 00:00:00 to 2024-12-17 19:21:00. Key risk indicators include: Gat Emb 1 (impact: 1.151); Gat Emb 17 (impact: 0.896); Gat Emb 4 (impact: 0.757). This pattern is consistent with FATF-identified money laundering typologies and warrants further investigation by the FIU.",
+  "transaction_count": 2,
+  "total_amount": 295010.33474683727,
+  "evidence": {
+    "sankey_json": null,
+    "ego_network_json": null
+  },
+  "generated_at": "2026-05-29T18:59:42.273475",
+  "system_version": "AEGIS-1.0",
+  "compliance": {
+    "fatf_rules_triggered": [
+      "rule_round_tripping"
+    ],
+    "nist_rmf_alignment": "Govern + Measure"
+  },
+  "priority_score": 0.6356,
+  "n_alerts_collapsed": 1,
+  "rules_triggered": [
+    "rule_round_tripping"
+  ],
+  "max_severity_weight": 1.0,
+  "status": "pending",
+  "assigned_to": "branch_manager",
+  "unique_counterparties": 2
+}

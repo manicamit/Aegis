@@ -195,63 +195,78 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
 
             <section>
               <h2>3 · Risk factors · SHAP attribution</h2>
-              <table>
-                <thead><tr><th>Factor</th><th style={{ textAlign: 'right' }}>SHAP</th><th>Evidence</th></tr></thead>
-                <tbody>
-                  {DOSSIER.shap.map(([f, s, e], i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 700, color: 'var(--ink)' }}>{f}</td>
-                      <td style={{ color: 'var(--danger)', fontFamily: "'Space Grotesk'", fontWeight: 700, textAlign: 'right' }}>{s}</td>
-                      <td style={{ color: 'var(--ink-2)' }}>{e}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {DOSSIER.shap.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--ink-3)', padding: '8px 0' }}>
+                  No SHAP factors returned for this case.
+                </div>
+              ) : (
+                <table>
+                  <thead><tr><th>Factor</th><th style={{ textAlign: 'right' }}>SHAP</th><th>Evidence</th></tr></thead>
+                  <tbody>
+                    {DOSSIER.shap.map(([f, s, e], i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 700, color: 'var(--ink)' }}>{f}</td>
+                        <td style={{ color: 'var(--danger)', fontFamily: "'Space Grotesk'", fontWeight: 700, textAlign: 'right' }}>{s}</td>
+                        <td style={{ color: 'var(--ink-2)' }}>{e}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </section>
 
             <section>
               <h2>4 · Transaction summary</h2>
-              <table>
-                <thead><tr><th>When</th><th>Channel</th><th>Counterparty</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
-                <tbody>
-                  {DOSSIER.tx.map((r, i) => (
-                    <tr key={i}>
-                      <td style={{ fontFamily: "'JetBrains Mono'", fontSize: 11 }}>{r[0]}</td>
-                      <td>{r[1]}</td>
-                      <td>{r[2]}</td>
-                      <td style={{ textAlign: 'right', fontFamily: "'Space Grotesk'", fontWeight: 700 }}>{r[3]}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ font: "600 11px/1.4 'JetBrains Mono'", color: 'var(--ink-3)', marginTop: 8 }}>
-                Showing 6 of {DOSSIER.totals.count} transactions · channels: {DOSSIER.totals.channels} · full ledger in Appendix B.
-              </div>
+              {DOSSIER.tx.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                  Per-transaction ledger awaits backend support
+                  (<code>evidence.transactions</code> is not yet populated by stage 6).
+                </div>
+              ) : (
+                <>
+                  <table>
+                    <thead><tr><th>When</th><th>Channel</th><th>Counterparty</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+                    <tbody>
+                      {DOSSIER.tx.map((r, i) => (
+                        <tr key={i}>
+                          <td style={{ fontFamily: "'JetBrains Mono'", fontSize: 11 }}>{r[0]}</td>
+                          <td>{r[1]}</td>
+                          <td>{r[2]}</td>
+                          <td style={{ textAlign: 'right', fontFamily: "'Space Grotesk'", fontWeight: 700 }}>{r[3]}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{ font: "600 11px/1.4 'JetBrains Mono'", color: 'var(--ink-3)', marginTop: 8 }}>
+                    Showing {DOSSIER.tx.length} of {DOSSIER.totals.count} transactions · channels: {DOSSIER.totals.channels}
+                  </div>
+                </>
+              )}
             </section>
 
             <section>
               <h2>5 · Graph evidence</h2>
               <div className="kv-grid" style={{ marginBottom: 12 }}>
-                <div className="k">Layering depth</div>      <div className="v">{DOSSIER.graph.layering} hops to cash-out</div>
-                <div className="k">Circular flow</div>       <div className="v" style={{ color: DOSSIER.graph.circular ? 'var(--danger)' : 'var(--approved)' }}>{DOSSIER.graph.circular ? 'Detected' : 'None'}</div>
-                <div className="k">Flagged neighbours</div>  <div className="v">{DOSSIER.graph.flaggedNeighbours} within 2 hops</div>
+                <div className="k">Layering depth</div>      <div className="v">{DOSSIER.graph.layering || '—'} hops to cash-out</div>
+                <div className="k">Circular flow</div>       <div className="v">{DOSSIER.graph.circular ? 'Detected' : '—'}</div>
+                <div className="k">Flagged neighbours</div>  <div className="v">{DOSSIER.graph.flaggedNeighbours || '—'} within 2 hops</div>
                 <div className="k">Dormancy period</div>     <div className="v">{DOSSIER.graph.dormancy}</div>
-                <div className="k">Branches involved</div>   <div className="v">{DOSSIER.graph.branches}</div>
+                <div className="k">Branches involved</div>   <div className="v">{DOSSIER.graph.branches || '—'}</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <SnapshotEgo />
-                <SnapshotSankey />
+              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                Inline ego-network and sankey snapshots will render once <code>evidence.ego_network_json</code> and
+                <code> evidence.sankey_json</code> are populated by stage 6.
               </div>
             </section>
 
             <section>
               <h2>6 · Audit & compliance</h2>
               <div className="kv-grid">
-                <div className="k">PII masking</div>            <div className="v" style={{ color: '#1a7d52' }}>✓ SHA-256 verified · all PII fields masked pre-LLM</div>
+                <div className="k">PII masking</div>            <div className="v">SHA-256 verified · all PII fields masked pre-LLM</div>
                 <div className="k">Model</div>                  <div className="v">{DOSSIER.model} · {DOSSIER.prompt}</div>
-                <div className="k">Reviewer</div>               <div className="v">{DOSSIER.reviewer} · approved 09:11 IST</div>
-                <div className="k">NIST AI RMF alignment</div>  <div className="v">{DOSSIER.nistRMF.join(' · ')}</div>
-                <div className="k">Audit-log chain</div>        <div className="v" style={{ fontFamily: "'JetBrains Mono'", fontSize: 11 }}>blk #41 209 · prev 0x9c7a2…f041</div>
+                <div className="k">Reviewer</div>               <div className="v">{DOSSIER.reviewer}</div>
+                <div className="k">NIST AI RMF alignment</div>  <div className="v">{DOSSIER.nistRMF.length > 0 ? DOSSIER.nistRMF.join(' · ') : '—'}</div>
+                <div className="k">Audit-log chain</div>        <div className="v" style={{ fontFamily: "'JetBrains Mono'", fontSize: 11 }}>awaiting /api/v1/audit/trail</div>
                 <div className="k">Status</div>                 <div className="v">{filed ? <span className="tag is-approved">STR FILED</span> : <span className="tag is-warn">DRAFT</span>}</div>
               </div>
             </section>
@@ -263,8 +278,8 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
               <SourceTag source={source} large />
               <div style={{ font: "500 12px/1.5 'Manrope'", color: 'var(--ink-3)', marginTop: 10 }}>
                 {source === 'pre-generated'
-                  ? 'Loaded from the case-warmup cache in 180 ms — narrative was drafted at the time the case was opened.'
-                  : 'Generated live just now. Slightly slower but reflects any evidence updated since the cache.'}
+                  ? 'Loaded from the pre-generated case dossier.'
+                  : 'Generated live from the LLM provider configured in stage 6.'}
               </div>
             </div>
 
@@ -272,10 +287,10 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
               <h4>Export</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button className="btn btn--brand" style={{ width: '100%', justifyContent: 'center' }}>
-                  <Icon name="print" size={14} /> Export PDF · 3.2 MB
+                  <Icon name="print" size={14} /> Export PDF
                 </button>
                 <button className="btn btn--ghost" style={{ width: '100%', justifyContent: 'center' }}>
-                  <Icon name="export" size={14} /> Export JSON · 118 KB
+                  <Icon name="export" size={14} /> Export JSON
                 </button>
                 <button className="btn btn--ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={onCopy}>
                   <Icon name="card" size={14} /> {copied ? 'Copied!' : 'Copy narrative'}
@@ -316,12 +331,11 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
               <h4>Compliance checklist</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {([
-                  ['PII fully masked', true],
-                  ['FATF rules cited', true],
-                  ['NIST AI RMF aligned', true],
-                  ['Word count ≥ 250', compliant],
-                  ['Reviewer approved', true],
-                  ['Audit hash written', true],
+                  ['FATF rules cited',    DOSSIER.fatf.length    > 0],
+                  ['NIST AI RMF aligned', DOSSIER.nistRMF.length > 0],
+                  ['Word count ≥ 250',    compliant],
+                  ['SHAP factors cited',  DOSSIER.shap.length    > 0],
+                  ['Plain-English summary', Boolean(plainEnglish)],
                 ] as [string, boolean][]).map(([lbl, ok], i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: 'var(--ink-2)' }}>
                     <span style={{
@@ -357,63 +371,6 @@ function SourceTag({ source, large }: { source: 'pre-generated' | 'live'; large?
     }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />
       Source · {source}
-      {!large && <span style={{ font: "600 10px/1 'JetBrains Mono'", opacity: 0.75 }}>{isPre ? '180 ms' : '2.1 s'}</span>}
     </span>
-  );
-}
-
-function SnapshotEgo() {
-  return (
-    <div className="snapshot">
-      <svg viewBox="0 0 360 220" width="100%" height="100%">
-        <defs>
-          <radialGradient id="snhalo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#ef5b6b" stopOpacity=".35" />
-            <stop offset="100%" stopColor="#ef5b6b" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle cx={180} cy={110} r={90} fill="url(#snhalo)" />
-        {([[180, 110, 90, 110], [180, 110, 260, 70], [180, 110, 260, 160], [90, 110, 40, 60], [260, 70, 330, 40], [260, 160, 330, 190]] as [number, number, number, number][]).map((c, i) => (
-          <line key={i} x1={c[0]} y1={c[1]} x2={c[2]} y2={c[3]} stroke="rgba(110,107,212,.5)" strokeWidth="2" />
-        ))}
-        {([[180, 110, 14, '#ef5b6b'], [90, 110, 9, '#a78bfa'], [260, 70, 9, '#22d3ee'], [260, 160, 9, '#fbbf24'], [40, 60, 7, '#a78bfa'], [330, 40, 7, '#a78bfa'], [330, 190, 7, '#a78bfa']] as [number, number, number, string][]).map(([x, y, r, c], i) => (
-          <g key={i}>
-            <circle cx={x} cy={y} r={r + 5} fill={c} opacity=".25" />
-            <circle cx={x} cy={y} r={r} fill={c} />
-          </g>
-        ))}
-        <text x={14} y={206} fontFamily="Manrope" fontWeight="700" fontSize="9" letterSpacing=".16em" fill="rgba(255,255,255,.55)">EGO NETWORK · RADIUS 2</text>
-      </svg>
-    </div>
-  );
-}
-
-function SnapshotSankey() {
-  return (
-    <div className="snapshot">
-      <svg viewBox="0 0 360 220" width="100%" height="100%">
-        <defs>
-          <linearGradient id="snsk" x1="0" x2="1">
-            <stop offset="0%" stopColor="#e76edd" stopOpacity=".7" />
-            <stop offset="100%" stopColor="#2ad1c3" stopOpacity=".7" />
-          </linearGradient>
-        </defs>
-        <rect x={32} y={60} width={10} height={100} fill="#e76edd" rx={2} />
-        <rect x={180} y={40} width={10} height={28} fill="#6e6bd4" rx={2} />
-        <rect x={180} y={80} width={10} height={36} fill="#6e6bd4" rx={2} />
-        <rect x={180} y={130} width={10} height={32} fill="#6e6bd4" rx={2} />
-        <rect x={180} y={172} width={10} height={20} fill="#6e6bd4" rx={2} />
-        <rect x={310} y={60} width={10} height={26} fill="#2ad1c3" rx={2} />
-        <rect x={310} y={100} width={10} height={30} fill="#2ad1c3" rx={2} />
-        <rect x={310} y={144} width={10} height={30} fill="#2ad1c3" rx={2} />
-        {([[42, 80, 180, 54], [42, 110, 180, 98], [42, 135, 180, 146], [42, 155, 180, 182]] as [number, number, number, number][]).map(([x1, y1, x2, y2], i) => (
-          <path key={'a' + i} d={`M${x1} ${y1} C ${x1 + 50} ${y1}, ${x2 - 50} ${y2}, ${x2} ${y2}`} stroke="url(#snsk)" strokeWidth="9" fill="none" opacity=".5" />
-        ))}
-        {([[190, 54, 310, 75], [190, 98, 310, 115], [190, 146, 310, 160], [190, 182, 310, 160]] as [number, number, number, number][]).map(([x1, y1, x2, y2], i) => (
-          <path key={'b' + i} d={`M${x1} ${y1} C ${x1 + 50} ${y1}, ${x2 - 50} ${y2}, ${x2} ${y2}`} stroke="rgba(42,209,195,.5)" strokeWidth="7" fill="none" />
-        ))}
-        <text x={14} y={206} fontFamily="Manrope" fontWeight="700" fontSize="9" letterSpacing=".16em" fill="rgba(255,255,255,.55)">SANKEY · ₹8.4L LAYERED</text>
-      </svg>
-    </div>
   );
 }

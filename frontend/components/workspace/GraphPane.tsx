@@ -1,36 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { EgoGraph } from './EgoGraph';
 import { SankeyView } from './SankeyView';
 import { ReplayPane } from './ReplayPane';
-import { TYPE_COLOR, EGO_EDGES, riskColor } from '@/lib/workspace-data';
+import {
+  layoutEgo,
+  layoutSankey,
+  sankeyToReplay,
+  type ApiEgoResponse,
+  type ApiSankeyResponse,
+} from '@/lib/graph-shared';
 
 type GraphMode = 'sankey' | 'ego' | 'replay';
 
 export interface HoverNode {
   label: string;
-  type: string;
-  risk: number;
-  sub: string;
-  x: number;
-  y: number;
-  in: number;
-  out: number;
+  type:  string;
+  risk:  number;
+  sub:   string;
+  x:     number;
+  y:     number;
+  in:    number;
+  out:   number;
 }
 
 export interface HoverEdge {
   amount: number;
-  label: string;
-  x: number;
-  y: number;
+  label:  string;
+  x:      number;
+  y:      number;
 }
 
-export function GraphPane() {
-  const [mode, setMode]         = useState<GraphMode>('ego');
-  const [radius, setRadius]     = useState<1 | 2 | 3>(2);
+const TYPE_COLOR_LEGEND: Record<string, string> = {
+  account:  '#e76edd',
+  upi:      '#22d3ee',
+  device:   '#2ad1c3',
+  branch:   '#a78bfa',
+  ip:       '#fbbf24',
+  merchant: '#f08a5d',
+};
+
+function riskColor(r: number): string {
+  if (r >= 80) return '#ef5b6b';
+  if (r >= 60) return '#e9a13b';
+  if (r >= 40) return '#fbbf24';
+  return '#34d399';
+}
+
+interface GraphPaneProps {
+  ego:    ApiEgoResponse    | null;
+  sankey: ApiSankeyResponse | null;
+}
+
+export function GraphPane({ ego, sankey }: GraphPaneProps) {
+  const [mode, setMode]           = useState<GraphMode>('ego');
+  const [radius, setRadius]       = useState<1 | 2 | 3>(2);
   const [hoverNode, setHoverNode] = useState<HoverNode | null>(null);
   const [hoverEdge, setHoverEdge] = useState<HoverEdge | null>(null);
+
+  const egoLayout    = useMemo(() => ego    ? layoutEgo(ego)         : null, [ego]);
+  const sankeyLayout = useMemo(() => sankey ? layoutSankey(sankey)   : null, [sankey]);
+  const replayHops   = useMemo(() => sankey ? sankeyToReplay(sankey) : [],   [sankey]);
 
   const modes: [GraphMode, string][] = [
     ['sankey', 'Sankey flow'],
@@ -57,16 +88,28 @@ export function GraphPane() {
         )}
         <span className="spacer" />
         <span className="muted" style={{ font: "600 11px/1 'JetBrains Mono', monospace", letterSpacing: '.06em', color: 'var(--ink-3)' }}>
-          {mode === 'sankey' && 'Fund flow · source → bridges → cash-out'}
-          {mode === 'ego'    && `Ego radius ${radius} · ${EGO_EDGES.length} edges`}
-          {mode === 'replay' && 'Chronological hop animation'}
+          {mode === 'sankey' && (sankeyLayout ? `Fund flow · ${sankeyLayout.bridges.items.length} bridges · ${sankeyLayout.cashOut.items.length} cash-out` : 'Sankey flow')}
+          {mode === 'ego'    && (egoLayout    ? `Ego radius ${radius} · ${egoLayout.edges.length} edges`                                                   : 'Ego network')}
+          {mode === 'replay' && (replayHops.length > 0 ? `Hop replay · ${replayHops.length} steps`                                                          : 'Replay')}
         </span>
       </div>
 
       <div className="gcanvas">
-        {mode === 'ego'    && <EgoGraph radius={radius} onHoverNode={setHoverNode} onHoverEdge={setHoverEdge} />}
-        {mode === 'sankey' && <SankeyView />}
-        {mode === 'replay' && <ReplayPane />}
+        {mode === 'ego' && (
+          egoLayout
+            ? <EgoGraph layout={egoLayout} radius={radius} onHoverNode={setHoverNode} onHoverEdge={setHoverEdge} />
+            : <EmptyCanvas msg="Ego-network unavailable for this account." />
+        )}
+        {mode === 'sankey' && (
+          sankeyLayout
+            ? <SankeyView layout={sankeyLayout} />
+            : <EmptyCanvas msg="Sankey flow unavailable for this account." />
+        )}
+        {mode === 'replay' && (
+          replayHops.length > 0
+            ? <ReplayPane hops={replayHops} layout={egoLayout} />
+            : <EmptyCanvas msg="No transaction hops to replay." />
+        )}
 
         {hoverNode && (
           <div className="gtip" style={{ left: hoverNode.x + 24, top: hoverNode.y + 14 }}>
@@ -88,12 +131,23 @@ export function GraphPane() {
 
         {mode !== 'replay' && (
           <div className="glegend">
-            {Object.entries(TYPE_COLOR).map(([k, c]) => (
+            {Object.entries(TYPE_COLOR_LEGEND).map(([k, c]) => (
               <span key={k} className="lg"><span className="sw" style={{ background: c }} />{k}</span>
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function EmptyCanvas({ msg }: { msg: string }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+      color: 'rgba(230,235,255,.5)', font: "600 12px/1.4 'Manrope'",
+    }}>
+      {msg}
     </div>
   );
 }

@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/shared/Icon';
 import { clearSession } from '@/lib/auth';
-import {
-  fetchAlertQueue, postAlertAction,
-  type QueueAlert, type ActionResponse,
-} from '@/lib/cases';
+import { fetchAlertQueue, postAlertAction } from '@/lib/cases-client';
+import type { QueueAlert, ActionResponse } from '@/lib/cases-shared';
 
 type ActionKind = 'approve' | 'flag' | 'freeze';
 

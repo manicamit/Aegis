@@ -1,37 +1,67 @@
 'use client';
 
 import { useMemo } from 'react';
-import { EGO_NODES, EGO_EDGES, TYPE_COLOR, riskColor } from '@/lib/workspace-data';
 import type { HoverNode, HoverEdge } from './GraphPane';
+import type { LaidOutEdge, LaidOutNode } from '@/lib/graph-shared';
+
+const TYPE_COLOR: Record<string, string> = {
+  account:  '#e76edd',
+  upi:      '#22d3ee',
+  device:   '#2ad1c3',
+  branch:   '#a78bfa',
+  ip:       '#fbbf24',
+  merchant: '#f08a5d',
+};
+
+function riskColor(r: number): string {
+  if (r >= 80) return '#ef5b6b';
+  if (r >= 60) return '#e9a13b';
+  if (r >= 40) return '#fbbf24';
+  return '#34d399';
+}
 
 interface EgoGraphProps {
+  layout: { nodes: LaidOutNode[]; edges: LaidOutEdge[] };
   radius: 1 | 2 | 3;
   onHoverNode: (n: HoverNode | null) => void;
   onHoverEdge: (e: HoverEdge | null) => void;
 }
 
-export function EgoGraph({ radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
-  const visibleIds = useMemo(() => {
-    if (radius >= 2) return new Set(EGO_NODES.map(n => n.id));
-    const ring1 = new Set(EGO_EDGES.filter(e => e.source === 'C').map(e => e.target));
-    ring1.add('C');
-    return ring1;
-  }, [radius]);
+export function EgoGraph({ layout, radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
+  const W = 720, H = 520;
+  const { nodes, edges } = layout;
+  const center = nodes.find(n => n.isCenter) ?? nodes[0];
 
-  const visibleEdges = useMemo(
-    () => EGO_EDGES.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target)),
-    [visibleIds],
-  );
+  // Radius gate: hop 1 = only edges incident to centre; hop 2/3 = everything we have.
+  const visibleEdges = useMemo(() => {
+    if (!center || radius >= 2) return edges;
+    return edges.filter(e => e.source === center.id || e.target === center.id);
+  }, [edges, center, radius]);
+
+  const visibleIds = useMemo(() => {
+    const ids = new Set<string>();
+    visibleEdges.forEach(e => { ids.add(e.source); ids.add(e.target); });
+    if (center) ids.add(center.id);
+    return ids;
+  }, [visibleEdges, center]);
 
   const degree = useMemo(() => {
     const d: Record<string, { in: number; out: number }> = {};
-    EGO_NODES.forEach(n => { d[n.id] = { in: 0, out: 0 }; });
-    EGO_EDGES.forEach(e => { d[e.source].out++; d[e.target].in++; });
+    nodes.forEach(n => { d[n.id] = { in: 0, out: 0 }; });
+    edges.forEach(e => {
+      if (d[e.source]) d[e.source].out++;
+      if (d[e.target]) d[e.target].in++;
+    });
     return d;
-  }, []);
+  }, [nodes, edges]);
 
-  const W = 720, H = 520;
-  const center = EGO_NODES[0];
+  if (!center) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'rgba(230,235,255,.5)' }}>
+        Empty ego network.
+      </div>
+    );
+  }
 
   return (
     <svg
@@ -55,8 +85,9 @@ export function EgoGraph({ radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
       <circle cx={center.x} cy={center.y} r={210} fill="none" stroke="rgba(255,255,255,.04)" />
 
       {visibleEdges.map((e, i) => {
-        const A = EGO_NODES.find(n => n.id === e.source)!;
-        const B = EGO_NODES.find(n => n.id === e.target)!;
+        const A = nodes.find(n => n.id === e.source);
+        const B = nodes.find(n => n.id === e.target);
+        if (!A || !B) return null;
         const mx = (A.x + B.x) / 2;
         const my = (A.y + B.y) / 2 - 12;
         const w = Math.max(1.4, Math.min(7, e.amount / 35000));
@@ -94,10 +125,9 @@ export function EgoGraph({ radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
         );
       })}
 
-      {EGO_NODES.filter(n => visibleIds.has(n.id)).map(n => {
+      {nodes.filter(n => visibleIds.has(n.id)).map(n => {
         const tColor = TYPE_COLOR[n.type] || '#a78bfa';
         const ring = riskColor(n.risk);
-        const isCenter = n.id === 'C';
         return (
           <g
             key={n.id}
@@ -107,11 +137,11 @@ export function EgoGraph({ radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
               const r = svg.getBoundingClientRect();
               onHoverNode({
                 label: n.label,
-                type: n.type,
-                risk: n.risk,
-                sub: n.sub,
-                in: degree[n.id].in,
-                out: degree[n.id].out,
+                type:  n.type,
+                risk:  n.risk,
+                sub:   n.sub,
+                in:    degree[n.id]?.in  ?? 0,
+                out:   degree[n.id]?.out ?? 0,
                 x: (n.x / W) * r.width,
                 y: (n.y / H) * r.height,
               });
@@ -120,27 +150,29 @@ export function EgoGraph({ radius, onHoverNode, onHoverEdge }: EgoGraphProps) {
             style={{ cursor: 'pointer' }}
           >
             <circle cx={n.x} cy={n.y} r={n.r + 8} fill={ring} opacity=".18" filter="url(#nodeglow)" />
-            <circle cx={n.x} cy={n.y} r={n.r + 3} fill="none" stroke={ring} strokeWidth={isCenter ? 3 : 1.5} opacity={isCenter ? 1 : 0.8} />
+            <circle cx={n.x} cy={n.y} r={n.r + 3} fill="none" stroke={ring} strokeWidth={n.isCenter ? 3 : 1.5} opacity={n.isCenter ? 1 : 0.8} />
             <circle cx={n.x} cy={n.y} r={n.r} fill={tColor} />
             <circle cx={n.x} cy={n.y} r={n.r - 4} fill="#0a0c25" opacity=".22" />
-            {isCenter && (
-              <text x={n.x} y={n.y + 4} fontFamily="'Space Grotesk'" fontWeight="800" fontSize="13" fill="#fff" textAnchor="middle">94</text>
+            {n.isCenter && (
+              <text x={n.x} y={n.y + 4} fontFamily="'Space Grotesk'" fontWeight="800" fontSize="13" fill="#fff" textAnchor="middle">{n.risk}</text>
             )}
             <text x={n.x} y={n.y + n.r + 14} fontFamily="Manrope" fontWeight="700" fontSize="11" textAnchor="middle" fill="rgba(230,235,255,.92)">
               {n.label}
             </text>
-            <text x={n.x} y={n.y + n.r + 26} fontFamily="'JetBrains Mono'" fontWeight="500" fontSize="9.5" textAnchor="middle" fill="rgba(230,235,255,.42)">
-              {n.sub}
-            </text>
+            {n.sub && (
+              <text x={n.x} y={n.y + n.r + 26} fontFamily="'JetBrains Mono'" fontWeight="500" fontSize="9.5" textAnchor="middle" fill="rgba(230,235,255,.42)">
+                {n.sub}
+              </text>
+            )}
           </g>
         );
       })}
 
       <g>
-        <rect x={14} y={14} rx={8} ry={8} width={220} height={28} fill="rgba(15,18,40,.55)" stroke="rgba(255,255,255,.08)" />
+        <rect x={14} y={14} rx={8} ry={8} width={240} height={28} fill="rgba(15,18,40,.55)" stroke="rgba(255,255,255,.08)" />
         <circle cx={28} cy={28} r={4} fill="#2ad1c3" />
         <text x={40} y={32} fontFamily="Manrope" fontWeight="700" fontSize="10.5" letterSpacing=".18em" fill="rgba(230,235,255,.85)">
-          LIVE · {EGO_NODES.filter(n => visibleIds.has(n.id)).length} NODES · {visibleEdges.length} EDGES
+          LIVE · {nodes.filter(n => visibleIds.has(n.id)).length} NODES · {visibleEdges.length} EDGES
         </text>
       </g>
     </svg>

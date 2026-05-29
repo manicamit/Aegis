@@ -1,0 +1,39 @@
+{
+  "case_id": "AEGIS-0000CD168-68",
+  "account_reference": "0000CD168",
+  "account_id": "0000CD168",
+  "risk_score": 71.4,
+  "plain_english": "0000CD168 moved \u20b92.6L in 41 minutes \u2014 gat emb 1, gat emb 17, and rules triggered.",
+  "risk_factors": [
+    "+ Gat Emb 1 (impact: 1.151)",
+    "+ Gat Emb 17 (impact: 1.038)",
+    "+ Multiple FATF rules triggered (impact: 0.815)",
+    "+ Gat Emb 4 (impact: 0.011)"
+  ],
+  "str_narrative": "Account 0000CD168 (risk score: 71.4/100) was flagged for suspicious activity. Analysis reveals 4 transactions totalling approximately \u20b9260,759 within 2024-06-28 01:13:00 to 2024-06-28 01:54:00. Key risk indicators include: Gat Emb 1 (impact: 1.151); Gat Emb 17 (impact: 1.038); Multiple FATF rules triggered (impact: 0.815). This pattern is consistent with FATF-identified money laundering typologies and warrants further investigation by the FIU.",
+  "transaction_count": 4,
+  "total_amount": 260759.0019697854,
+  "evidence": {
+    "sankey_json": null,
+    "ego_network_json": null
+  },
+  "generated_at": "2026-05-29T18:59:42.189514",
+  "system_version": "AEGIS-1.0",
+  "compliance": {
+    "fatf_rules_triggered": [
+      "rule_rapid_movement",
+      "rule_fan_in_fan_out"
+    ],
+    "nist_rmf_alignment": "Govern + Measure"
+  },
+  "priority_score": 0.6856,
+  "n_alerts_collapsed": 2,
+  "rules_triggered": [
+    "rule_rapid_movement",
+    "rule_fan_in_fan_out"
+  ],
+  "max_severity_weight": 1.0,
+  "status": "pending",
+  "assigned_to": "branch_manager",
+  "unique_counterparties": 4
+}

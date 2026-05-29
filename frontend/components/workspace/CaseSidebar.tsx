@@ -5,16 +5,35 @@ import Link from 'next/link';
 import { Icon } from '@/components/shared/Icon';
 import type { WorkspaceCase } from '@/lib/workspace-data';
 
-export function CaseSidebar({ caseData }: { caseData: WorkspaceCase }) {
+interface CaseSidebarProps {
+  caseData: WorkspaceCase;
+  /** SLA seconds remaining; null if the backend doesn't yet expose it for this case. */
+  slaSecondsRemaining?: number | null;
+  /** Number of underlying alerts collapsed into this case; null if not available. */
+  collapsedAlerts?: number | null;
+  /** Risk-classifier confidence (0-1), if available. */
+  confidence?: number | null;
+}
+
+export function CaseSidebar({
+  caseData,
+  slaSecondsRemaining = null,
+  collapsedAlerts      = null,
+  confidence           = null,
+}: CaseSidebarProps) {
   const c = caseData;
-  const [seconds, setSeconds] = useState(8 * 60 + 14);
+  const [seconds, setSeconds] = useState<number | null>(slaSecondsRemaining);
   useEffect(() => {
-    const t = setInterval(() => setSeconds(s => Math.max(0, s - 1)), 1000);
+    setSeconds(slaSecondsRemaining);
+  }, [slaSecondsRemaining]);
+  useEffect(() => {
+    if (seconds == null) return;
+    const t = setInterval(() => setSeconds(s => (s == null ? null : Math.max(0, s - 1))), 1000);
     return () => clearInterval(t);
-  }, []);
-  const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const ss = String(seconds % 60).padStart(2, '0');
-  const urgent = seconds < 300;
+  }, [seconds == null]);
+  const mm = seconds != null ? String(Math.floor(seconds / 60)).padStart(2, '0') : '--';
+  const ss = seconds != null ? String(seconds % 60).padStart(2, '0')             : '--';
+  const urgent = seconds != null && seconds < 300;
 
   const bankParts = c.bank.split(' · ');
   const bankName  = bankParts[0];
@@ -37,8 +56,8 @@ export function CaseSidebar({ caseData }: { caseData: WorkspaceCase }) {
           </div>
           <div className="meta">
             <div className="k">Risk score</div>
-            <div className="v">High confidence · 0.94</div>
-            <span className="priority">Priority · P1</span>
+            <div className="v">{confidence != null ? `Confidence · ${confidence.toFixed(2)}` : 'Confidence · —'}</div>
+            <span className="priority">Priority · {c.score >= 90 ? 'P1' : c.score >= 75 ? 'P2' : 'P3'}</span>
           </div>
         </div>
       </div>
@@ -53,24 +72,30 @@ export function CaseSidebar({ caseData }: { caseData: WorkspaceCase }) {
         <div className="row-kv"><span className="k">Period</span><span className="v mono">{c.dateRange}</span></div>
       </div>
 
-      <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="agg-banner">
-          <span className="n">7</span>
-          <div className="copy">
-            <b>alerts collapsed</b>
-            <span>From rule + GNN voting · last 21d</span>
+      {collapsedAlerts != null && collapsedAlerts > 0 && (
+        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="agg-banner">
+            <span className="n">{collapsedAlerts}</span>
+            <div className="copy">
+              <b>alerts collapsed</b>
+              <span>From rule + GNN voting</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="panel">
         <h4>Auto-escalation</h4>
         <div className={'timer-pill ' + (urgent ? 'is-urgent' : '')}>
           <div className="clk">{mm}:{ss}</div>
           <div>
-            <div className="lbl">{urgent ? 'Escalating soon' : 'Until escalation'}</div>
+            <div className="lbl">
+              {seconds == null
+                ? 'No SLA available'
+                : urgent ? 'Escalating soon' : 'Until escalation'}
+            </div>
             <div style={{ font: "500 11px/1.3 'Manrope'", color: urgent ? '#b53848' : '#a96b16', marginTop: 2 }}>
-              Will route to Admin queue
+              {seconds == null ? 'awaiting /api/v1/alerts/{id}/sla' : 'Will route to Admin queue'}
             </div>
           </div>
         </div>

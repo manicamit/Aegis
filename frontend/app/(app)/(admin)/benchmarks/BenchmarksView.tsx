@@ -1,52 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Topbar } from '@/components/nav/Topbar';
 import { Icon } from '@/components/shared/Icon';
-import type { BenchmarkRow } from '@/lib/metrics';
+import type { BenchmarkPayload, BenchmarkRow } from '@/lib/metrics';
 
-interface Kpi { k: string; v: string; delta: string; good: boolean; spark: number[]; invert?: boolean }
+interface KpiCard {
+  k:   string;
+  row: BenchmarkRow | null;
+}
 
-const KPIS: Kpi[] = [
-  { k: 'ROC-AUC',        v: '0.942', delta: '+0.018 vs rule', good: true, spark: [0.91, 0.92, 0.92, 0.93, 0.94, 0.94, 0.942] },
-  { k: 'Precision',      v: '0.873', delta: '+0.142 vs rule', good: true, spark: [0.73, 0.75, 0.78, 0.80, 0.83, 0.86, 0.873] },
-  { k: 'Recall',         v: '0.812', delta: '+0.094 vs rule', good: true, spark: [0.71, 0.74, 0.77, 0.78, 0.79, 0.80, 0.812] },
-  { k: 'F1 Score',       v: '0.841', delta: '+0.119 vs rule', good: true, spark: [0.72, 0.74, 0.77, 0.79, 0.81, 0.83, 0.841] },
-  { k: 'False Pos Rate', v: '0.041', delta: '−0.330 vs rule', good: true, spark: [0.39, 0.32, 0.21, 0.14, 0.09, 0.06, 0.041], invert: true },
+const KPI_DEFS: Array<{ label: string; metric: string }> = [
+  { label: 'ROC-AUC',        metric: 'ROC-AUC' },
+  { label: 'Precision',      metric: 'Precision' },
+  { label: 'Recall',         metric: 'Recall' },
+  { label: 'F1 Score',       metric: 'F1 Score' },
+  { label: 'False Pos Rate', metric: 'False Positive Rate' },
 ];
 
-interface VolumeRow { d: string; total: number; tp: number; fp: number }
-const ALERT_VOLUME: VolumeRow[] = [
-  { d: 'Day 1', total: 1240, tp: 76, fp: 1164 },
-  { d: 'Day 2', total: 1180, tp: 82, fp: 1098 },
-  { d: 'Day 3', total: 980,  tp: 89, fp: 891 },
-  { d: 'Day 4', total: 720,  tp: 93, fp: 627 },
-  { d: 'Day 5', total: 410,  tp: 95, fp: 315 },
-  { d: 'Day 6', total: 240,  tp: 96, fp: 144 },
-  { d: 'Day 7', total: 132,  tp: 96, fp: 36  },
-];
-
-function Spark({ data, invert }: { data: number[]; invert?: boolean }) {
-  const W = 200, H = 40;
-  const min = Math.min(...data), max = Math.max(...data);
-  const x = (i: number) => (i / (data.length - 1)) * W;
-  const y = (v: number) => H - 4 - ((v - min) / (max - min || 1)) * (H - 8);
-  const d = data.map((v, i) => (i === 0 ? 'M' : 'L') + x(i) + ' ' + y(v)).join(' ');
-  const last = data[data.length - 1];
-  const trendUp = data[data.length - 1] > data[0];
-  const color = invert ? (trendUp ? 'var(--danger)' : 'var(--approved)') : (trendUp ? 'var(--approved)' : 'var(--danger)');
+function SparkPlaceholder({ better }: { better: boolean | null }) {
+  // Sparkline history requires a time-series endpoint that does not exist yet.
+  // Render a flat trend bar coloured by current Δ direction.
+  const color = better === true ? 'var(--approved)' : better === false ? 'var(--danger)' : 'var(--ink-3)';
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40" className="spark" preserveAspectRatio="none">
-      <path d={d + ` L ${W} ${H} L 0 ${H} Z`} fill={color} opacity={0.12} />
-      <path d={d} fill="none" stroke={color} strokeWidth="2" />
-      <circle cx={x(data.length - 1)} cy={y(last)} r={3} fill={color} />
+    <svg viewBox="0 0 200 40" width="100%" height="40" className="spark" preserveAspectRatio="none">
+      <line x1={0} x2={200} y1={20} y2={20} stroke={color} strokeWidth={2} strokeDasharray="4 4" opacity={0.6} />
     </svg>
   );
 }
 
+interface VolumeRow { d: string; total: number; tp: number; fp: number }
+
 function AlertVolumeChart({ data }: { data: VolumeRow[] }) {
   const W = 640, H = 220;
   const padL = 40, padR = 8, padT = 12, padB = 28;
+  if (data.length === 0) {
+    return (
+      <div style={{ height: 220, display: 'grid', placeItems: 'center', color: 'var(--ink-3)', fontSize: 12 }}>
+        No time-series data
+      </div>
+    );
+  }
   const max = Math.max(...data.map(d => d.total));
   const x = (i: number) => padL + (i / (data.length - 1)) * (W - padL - padR);
   const y = (v: number) => padT + (1 - v / max) * (H - padT - padB);
@@ -102,8 +96,18 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[] }) {
+export default function BenchmarksView({ payload }: { payload: BenchmarkPayload }) {
+  const { rows: benchmark, dataset, citation } = payload;
   const [period, setPeriod] = useState('7d');
+
+  const kpis = useMemo<KpiCard[]>(() => {
+    return KPI_DEFS.map(def => ({
+      k:   def.label,
+      row: benchmark.find(r => r.metric === def.metric) ?? null,
+    }));
+  }, [benchmark]);
+
+  const reductionRow = benchmark.find(r => r.metric === 'Alert Reduction');
 
   return (
     <>
@@ -135,16 +139,22 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
       <div className="page__body">
         <div className="bench">
           <div className="bench-kpis">
-            {KPIS.map(k => (
-              <div key={k.k} className={'bench-kpi ' + (k.invert && !k.good ? 'is-bad' : '')}>
-                <div className="k">{k.k}</div>
-                <div className="v">{k.v}</div>
-                <div className="trend" style={{ color: k.invert ? (k.good ? 'var(--approved)' : 'var(--danger)') : 'var(--approved)' }}>
-                  {k.delta}
+            {kpis.map(k => {
+              const value  = k.row?.aegisStr ?? '—';
+              const delta  = k.row?.delta    ?? '—';
+              const better = k.row?.aegisBetter ?? null;
+              const trendColor = better === true ? 'var(--approved)' : better === false ? 'var(--danger)' : 'var(--ink-3)';
+              return (
+                <div key={k.k} className={'bench-kpi ' + (better === false ? 'is-bad' : '')}>
+                  <div className="k">{k.k}</div>
+                  <div className="v">{value}</div>
+                  <div className="trend" style={{ color: trendColor }}>
+                    {delta === '—' ? '—' : `${delta} vs rule`}
+                  </div>
+                  <SparkPlaceholder better={better} />
                 </div>
-                <Spark data={k.spark} invert={k.invert} />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="bench-grid">
@@ -173,23 +183,23 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
             <div className="bench-card">
               <h3>
                 Confusion matrix
-                <span className="helper">eval period · {period}</span>
+                <span className="helper">awaiting /api/v1/metrics/confusion</span>
               </h3>
               <div className="cm-matrix">
                 <div /><div className="h">Predicted positive</div><div className="h">Predicted negative</div>
                 <div className="lbl">Actual positive</div>
-                <div className="cell tp">486 <small>True positive</small></div>
-                <div className="cell fn">113 <small>False negative</small></div>
+                <div className="cell tp">— <small>True positive</small></div>
+                <div className="cell fn">— <small>False negative</small></div>
 
                 <div className="lbl">Actual negative</div>
-                <div className="cell fp">71 <small>False positive</small></div>
-                <div className="cell tn">4 401 330 <small>True negative</small></div>
+                <div className="cell fp">— <small>False positive</small></div>
+                <div className="cell tn">— <small>True negative</small></div>
               </div>
               <div style={{
                 marginTop: 16, padding: 12, background: '#fafbff', borderRadius: 10,
                 font: "600 12px/1.5 'Manrope'", color: 'var(--ink-2)',
               }}>
-                Of the 599 true fraud cases in the evaluation window, AEGIS caught 486 (81.1%) while flagging only 71 false positives — a precision of 87.3% on a 0.1% prevalence dataset.
+                Confusion-matrix counts will appear once the backend exposes per-window TP/FN/FP/TN totals.
               </div>
             </div>
           </div>
@@ -198,9 +208,9 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
             <div className="bench-card">
               <h3>
                 Alert volume over time
-                <span className="helper">total · true-positive · false-positive</span>
+                <span className="helper">awaiting /api/v1/metrics/alert-volume</span>
               </h3>
-              <AlertVolumeChart data={ALERT_VOLUME} />
+              <AlertVolumeChart data={[]} />
               <div style={{ display: 'flex', gap: 18, marginTop: 12, justifyContent: 'center' }}>
                 <Legend color="#6e6bd4" label="Total alerts" />
                 <Legend color="#2bbd7a" label="True positive" />
@@ -211,22 +221,22 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
             <div className="bench-card">
               <h3>Alert reduction ratio</h3>
               <div className="reduction">
-                <span className="n">9.4</span>
+                <span className="n">{reductionRow?.aegisNum != null ? reductionRow.aegisNum.toFixed(1) : '—'}</span>
                 <span className="x">×</span>
                 <span className="lbl">fewer false positives vs. rule engine baseline</span>
               </div>
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--line)' }}>
                   <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>Rule baseline · daily FP</span>
-                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--danger)' }}>1 164</span>
+                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--ink-3)' }}>—</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--line)' }}>
                   <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>AEGIS · daily FP</span>
-                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--approved)' }}>124</span>
+                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--ink-3)' }}>—</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
                   <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>Investigator-hours saved · weekly</span>
-                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--ink)' }}>312 h</span>
+                  <span style={{ font: "700 14px/1 'Space Grotesk'", color: 'var(--ink-3)' }}>—</span>
                 </div>
               </div>
             </div>
@@ -238,10 +248,8 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
                 Dataset provenance
               </div>
               <div className="provenance">
-                IBM_HI-Small · NeurIPS 2023<br />
-                5,078,345 transactions<br />
-                0.103% fraud prevalence<br />
-                sha256 0x9c7a…f041
+                {dataset ?? '—'}<br />
+                {citation ?? '—'}
               </div>
             </div>
             <div>
@@ -249,10 +257,7 @@ export default function BenchmarksView({ benchmark }: { benchmark: BenchmarkRow[
                 Model lineage
               </div>
               <div className="provenance">
-                XGBoost + GAT-Risk · v 2.4.1<br />
-                Trained 12 May 2026<br />
-                Next retrain · 09 Jun 2026<br />
-                Drift · 0.034 (within tol)
+                Awaiting /api/v1/metrics/model-lineage
               </div>
             </div>
             <div>

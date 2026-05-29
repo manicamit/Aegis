@@ -3,6 +3,8 @@ import { proxyToFastAPI } from './api-client';
 export interface BenchmarkResponse {
   headers: [string, string, string];
   rows: [string, string | number, string | number][];
+  dataset?: string;
+  citation?: string;
 }
 
 export interface BenchmarkRow {
@@ -15,6 +17,12 @@ export interface BenchmarkRow {
   ruleStr:   string;
   aegisStr:  string;
   aegisBetter: boolean | null;
+}
+
+export interface BenchmarkPayload {
+  rows:     BenchmarkRow[];
+  dataset:  string | null;
+  citation: string | null;
 }
 
 const HIGHER_IS_WORSE = new Set(['False Positive Rate', 'Alert Reduction']);
@@ -60,9 +68,13 @@ export function adaptBenchmark(data: BenchmarkResponse): BenchmarkRow[] {
   });
 }
 
-export async function fetchBenchmark(): Promise<BenchmarkRow[]> {
+export async function fetchBenchmark(): Promise<BenchmarkPayload> {
   const res = await proxyToFastAPI('/api/v1/metrics/benchmark');
   if (!res.ok) throw new Error(`/api/v1/metrics/benchmark → ${res.status}`);
   const data = (await res.json()) as BenchmarkResponse;
-  return adaptBenchmark(data);
+  return {
+    rows:     adaptBenchmark(data),
+    dataset:  data.dataset  ?? null,
+    citation: data.citation ?? null,
+  };
 }

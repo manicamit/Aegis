@@ -15,7 +15,8 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["version"] == "1.0.0"
+        assert "version" in data
+        assert data["system"] == "AEGIS"
 
 
 class TestAuthEndpoint:

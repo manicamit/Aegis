@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/shared/Icon';
-import { REPLAY_HOPS, REPLAY_POS, REPLAY_NODE_INFO } from '@/lib/workspace-data';
+import type { LaidOutNode, ReplayHopLite } from '@/lib/graph-shared';
+import { shortLabel } from '@/lib/graph-shared';
 
 const SPEED_MS = 1100;
 const W = 720, H = 520;
+const BASE_RISK = 42;
 
 const ctrlBtn: React.CSSProperties = {
   width: 30, height: 30, borderRadius: 8,
@@ -13,33 +15,87 @@ const ctrlBtn: React.CSSProperties = {
   color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer', flex: 'none',
 };
 
-export function ReplayPane() {
+interface ReplayPaneProps {
+  hops: ReplayHopLite[];
+  layout: { nodes: LaidOutNode[]; edges: unknown[] } | null;
+}
+
+export function ReplayPane({ hops, layout }: ReplayPaneProps) {
   const [idx, setIdx]         = useState(0);
   const [playing, setPlaying] = useState(false);
   const tickRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Resolve positions: prefer ego-layout coords; fall back to an evenly-spaced
+  // ring around the centre for hops that touch nodes outside the ego subgraph.
+  const positions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number; role: 'source' | 'bridge' | 'terminus' }>();
+    if (layout) {
+      layout.nodes.forEach(n => {
+        map.set(n.id, {
+          x: n.x,
+          y: n.y,
+          role: n.isCenter ? 'source' : 'bridge',
+        });
+      });
+    }
+    const sourceId = hops[0]?.from;
+    const maxHop = hops.reduce((m, h) => Math.max(m, h.hop), 0);
+
+    const missing: string[] = [];
+    hops.forEach(h => {
+      if (!map.has(h.from)) missing.push(h.from);
+      if (!map.has(h.to))   missing.push(h.to);
+    });
+    const dedupedMissing = Array.from(new Set(missing));
+    dedupedMissing.forEach((id, i) => {
+      const angle = (i / Math.max(1, dedupedMissing.length)) * Math.PI * 2;
+      map.set(id, {
+        x: W / 2 + Math.cos(angle) * 240,
+        y: H / 2 + Math.sin(angle) * 200,
+        role: 'terminus',
+      });
+    });
+
+    // Re-classify role for terminus nodes (last-hop targets)
+    hops.forEach(h => {
+      if (h.hop === maxHop) {
+        const p = map.get(h.to);
+        if (p) map.set(h.to, { ...p, role: 'terminus' });
+      }
+    });
+    if (sourceId && map.has(sourceId)) {
+      const p = map.get(sourceId)!;
+      map.set(sourceId, { ...p, role: 'source' });
+    }
+    return map;
+  }, [hops, layout]);
+
   useEffect(() => {
     if (!playing) return;
     tickRef.current = setTimeout(() => {
-      setIdx(i => Math.min(i + 1, REPLAY_HOPS.length));
-      if (idx >= REPLAY_HOPS.length) setPlaying(false);
+      setIdx(i => Math.min(i + 1, hops.length));
+      if (idx >= hops.length) setPlaying(false);
     }, SPEED_MS);
     return () => { if (tickRef.current) clearTimeout(tickRef.current); };
-  }, [playing, idx]);
-  useEffect(() => { if (idx >= REPLAY_HOPS.length) setPlaying(false); }, [idx]);
+  }, [playing, idx, hops.length]);
+  useEffect(() => { if (idx >= hops.length) setPlaying(false); }, [idx, hops.length]);
 
-  const visibleHops = REPLAY_HOPS.slice(0, idx);
-  const activeHop   = REPLAY_HOPS[idx - 1] ?? null;
-  const riskNow     = activeHop ? activeHop.bump : 42;
+  const visibleHops = hops.slice(0, idx);
+  const activeHop   = hops[idx - 1] ?? null;
   const lit = useMemo(() => {
-    const s = new Set<string>(['S']);
+    const s = new Set<string>();
+    if (hops[0]) s.add(hops[0].from);
     visibleHops.forEach(h => { s.add(h.from); s.add(h.to); });
     return s;
-  }, [visibleHops]);
+  }, [visibleHops, hops]);
 
-  const step = (d: number) => { setPlaying(false); setIdx(i => Math.max(0, Math.min(REPLAY_HOPS.length, i + d))); };
+  // Synthetic risk progression: monotonic rise from BASE_RISK toward 95.
+  const riskNow = activeHop ? Math.min(95, BASE_RISK + Math.round((idx / hops.length) * 53)) : BASE_RISK;
+  const delta = activeHop ? Math.round((riskNow - BASE_RISK) / Math.max(1, idx)) : 0;
+
+  const step = (d: number) => { setPlaying(false); setIdx(i => Math.max(0, Math.min(hops.length, i + d))); };
   const reset = () => { setPlaying(false); setIdx(0); };
-  const playPause = () => { if (idx >= REPLAY_HOPS.length) setIdx(0); setPlaying(p => !p); };
+  const playPause = () => { if (idx >= hops.length) setIdx(0); setPlaying(p => !p); };
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -51,11 +107,15 @@ export function ReplayPane() {
           </radialGradient>
           <filter id="rglow2"><feGaussianBlur stdDeviation="4" /></filter>
         </defs>
-        <circle cx={REPLAY_POS.S.x} cy={REPLAY_POS.S.y} r={150} fill="url(#haloR2)" />
 
-        {REPLAY_HOPS.map((h, i) => {
-          const A = REPLAY_POS[h.from];
-          const B = REPLAY_POS[h.to];
+        {hops[0] && positions.get(hops[0].from) && (
+          <circle cx={positions.get(hops[0].from)!.x} cy={positions.get(hops[0].from)!.y} r={150} fill="url(#haloR2)" />
+        )}
+
+        {hops.map((h, i) => {
+          const A = positions.get(h.from);
+          const B = positions.get(h.to);
+          if (!A || !B) return null;
           const ghost = i + 1 > visibleHops.length;
           return (
             <line
@@ -69,8 +129,9 @@ export function ReplayPane() {
         })}
 
         {visibleHops.map((h, i) => {
-          const A = REPLAY_POS[h.from];
-          const B = REPLAY_POS[h.to];
+          const A = positions.get(h.from);
+          const B = positions.get(h.to);
+          if (!A || !B) return null;
           const isActive = activeHop !== null && h.i === activeHop.i;
           return (
             <g key={'e' + i}>
@@ -98,12 +159,12 @@ export function ReplayPane() {
           );
         })}
 
-        {Object.entries(REPLAY_POS).map(([id, p]) => {
+        {Array.from(positions.entries()).map(([id, p]) => {
           const isLit = lit.has(id);
           const isActive = activeHop !== null && (activeHop.from === id || activeHop.to === id);
-          const info = REPLAY_NODE_INFO[id];
           const color = p.role === 'source' ? '#ef5b6b' : p.role === 'terminus' ? '#fbbf24' : '#a78bfa';
           const r = p.role === 'source' ? 20 : 14;
+          const label = shortLabel(id);
           return (
             <g key={id}>
               <circle cx={p.x} cy={p.y} r={r + 10} fill={color} opacity={isLit ? 0.18 : 0.04} filter="url(#rglow2)" />
@@ -116,10 +177,10 @@ export function ReplayPane() {
               <circle cx={p.x} cy={p.y} r={r} fill={isLit ? color : '#222a55'} opacity={isLit ? 1 : 0.5} />
               <circle cx={p.x} cy={p.y} r={r - 4} fill="#0a0c25" opacity=".25" />
               <text x={p.x} y={p.y + r + 14} fontFamily="Manrope" fontWeight="700" fontSize="11" textAnchor="middle" fill={isLit ? '#fff' : 'rgba(230,235,255,.4)'}>
-                {info.label}
+                {label}
               </text>
               <text x={p.x} y={p.y + r + 26} fontFamily="'JetBrains Mono'" fontWeight="500" fontSize="9.5" textAnchor="middle" fill="rgba(230,235,255,.4)">
-                {info.sub}
+                {p.role}
               </text>
             </g>
           );
@@ -139,7 +200,7 @@ export function ReplayPane() {
           WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
         }}>{riskNow}</span>
         <span style={{ font: "600 9px/1 'JetBrains Mono'", color: 'rgba(255,255,255,.5)', marginTop: 3 }}>
-          {activeHop ? `+${activeHop.delta} · hop ${activeHop.i}` : 'baseline 42'}
+          {activeHop ? `+${delta} · hop ${activeHop.i}` : `baseline ${BASE_RISK}`}
         </span>
       </div>
 
@@ -150,13 +211,13 @@ export function ReplayPane() {
           borderRadius: 12, padding: '10px 14px', color: '#fff', minWidth: 210,
         }}>
           <div style={{ font: "700 9px/1 'Manrope'", letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)' }}>
-            Hop {activeHop.i} of {REPLAY_HOPS.length}
+            Hop {activeHop.i} of {hops.length}
           </div>
-          <div style={{ font: "700 14px/1.1 'Manrope'", margin: '6px 0 6px' }}>₹{activeHop.amount.toLocaleString('en-IN')} · {activeHop.format}</div>
+          <div style={{ font: "700 14px/1.1 'Manrope'", margin: '6px 0 6px' }}>₹{activeHop.amount.toLocaleString('en-IN')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontSize: 11 }}>
-            <span style={{ color: 'rgba(255,255,255,.55)' }}>From</span><span style={{ color: '#fff', fontWeight: 600 }}>{activeHop.fromLabel}</span>
-            <span style={{ color: 'rgba(255,255,255,.55)' }}>To</span><span style={{ color: '#fff', fontWeight: 600 }}>{activeHop.toLabel}</span>
-            <span style={{ color: 'rgba(255,255,255,.55)' }}>When</span><span style={{ color: '#fff', fontWeight: 600 }}>{activeHop.at}</span>
+            <span style={{ color: 'rgba(255,255,255,.55)' }}>From</span><span style={{ color: '#fff', fontWeight: 600 }}>{shortLabel(activeHop.from)}</span>
+            <span style={{ color: 'rgba(255,255,255,.55)' }}>To</span><span style={{ color: '#fff', fontWeight: 600 }}>{shortLabel(activeHop.to)}</span>
+            <span style={{ color: 'rgba(255,255,255,.55)' }}>Hop</span><span style={{ color: '#fff', fontWeight: 600 }}>{activeHop.hop}</span>
           </div>
         </div>
       )}
@@ -195,19 +256,19 @@ export function ReplayPane() {
           <div style={{ position: 'relative', width: '100%', height: 4, borderRadius: 2, background: 'rgba(255,255,255,.12)' }}>
             <div style={{
               position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2,
-              width: `${(idx / REPLAY_HOPS.length) * 100}%`,
+              width: `${(idx / Math.max(1, hops.length)) * 100}%`,
               background: 'linear-gradient(90deg,var(--brand),var(--teal))',
             }} />
           </div>
-          {REPLAY_HOPS.map((h, i) => {
-            const pct = ((i + 0.5) / REPLAY_HOPS.length) * 100;
+          {hops.map((h, i) => {
+            const pct = ((i + 0.5) / hops.length) * 100;
             const done = (i + 1) <= idx;
             const here = (i + 1) === idx;
             return (
               <div
                 key={i}
                 onClick={() => { setPlaying(false); setIdx(i + 1); }}
-                title={h.at}
+                title={`hop ${h.hop}`}
                 style={{
                   position: 'absolute', left: `${pct}%`, top: 2, width: 2, height: 18,
                   transform: 'translateX(-50%)', borderRadius: 1, cursor: 'pointer',
@@ -218,7 +279,7 @@ export function ReplayPane() {
           })}
         </div>
         <span style={{ font: "700 11px/1 'JetBrains Mono'", color: '#fff', whiteSpace: 'nowrap' }}>
-          {idx} / {REPLAY_HOPS.length}
+          {idx} / {hops.length}
         </span>
       </div>
     </div>

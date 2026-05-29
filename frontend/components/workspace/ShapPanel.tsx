@@ -1,19 +1,40 @@
 'use client';
 
-import { useState } from 'react';
-import { SHAP_FEATURES, WORKSPACE_CASE } from '@/lib/workspace-data';
+import { useMemo, useState } from 'react';
+import type { FatfRule, ShapFeature } from '@/types/aegis';
 
 type ShapView = 'chart' | 'text';
 
 export interface ShapPanelProps {
-  /** Plain-English summary from the API (overrides the canned text). */
+  /** Plain-English summary from the API. */
   plainEnglish?: string;
-  /** Real SHAP factors from the API for the side-panel info. */
+  /** SHAP risk-factor strings from the API, e.g. "+ coordinated burst (impact: 0.28)". */
   riskFactors?: string[];
+  /** Aggregate risk score (0-100). */
+  score?: number;
+  /** FATF rules from the case dossier. */
+  fatfRules?: FatfRule[];
 }
 
-export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
+const FACTOR_REGEX = /^([+\-])\s*(.+?)\s*\(impact:\s*([\d.+\-]+)\)\s*$/i;
+
+function parseRiskFactors(factors: string[]): ShapFeature[] {
+  return factors.map(raw => {
+    const m = FACTOR_REGEX.exec(raw);
+    if (!m) {
+      return { feat: raw.replace(/^[+\-]\s*/, ''), v: 0, raw };
+    }
+    const sign = m[1] === '-' ? -1 : 1;
+    const v = sign * Math.abs(Number(m[3]) || 0);
+    return { feat: m[2], v, raw: `impact ${m[3]}` };
+  }).filter(f => f.feat);
+}
+
+export function ShapPanel({ plainEnglish, riskFactors, score, fatfRules }: ShapPanelProps = {}) {
   const [view, setView] = useState<ShapView>('chart');
+  const shapFeatures = useMemo(() => parseRiskFactors(riskFactors ?? []), [riskFactors]);
+  const rules = fatfRules ?? [];
+  const displayScore = score ?? null;
 
   return (
     <div className="shap">
@@ -26,9 +47,8 @@ export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
       </div>
 
       <div className="shap__big">
-        <span className="n">94</span>
+        <span className="n">{displayScore != null ? displayScore : '—'}</span>
         <span className="of">/ 100</span>
-        <span className="delta">▲ +52 vs. base</span>
       </div>
 
       {view === 'chart' ? (
@@ -37,7 +57,11 @@ export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
             <span>Pushes away ←</span>
             <span>→ Pushes toward fraud</span>
           </div>
-          {SHAP_FEATURES.map((s, i) => (
+          {shapFeatures.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', padding: '12px 0' }}>
+              No SHAP factors returned for this case.
+            </div>
+          ) : shapFeatures.map((s, i) => (
             <div key={i} className="shap__bar" title={s.raw}>
               <div className="label">{s.feat}<span className="val">{s.raw}</span></div>
               <div className="track">
@@ -56,9 +80,6 @@ export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
               </div>
             </div>
           ))}
-          <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
-            Base value · 0.42 (prior fraud probability for this account cohort).
-          </div>
         </div>
       ) : (
         <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--ink-2)' }}>
@@ -88,36 +109,22 @@ export function ShapPanel({ plainEnglish, riskFactors }: ShapPanelProps = {}) {
               </p>
             </>
           ) : (
-            <>
-              <p>The model is highly confident this account is laundering funds. The strongest signal is a <b>coordinated burst transfer</b> of 12 transactions in a 4-hour window, all just below the ₹50 000 reporting threshold (structuring).</p>
-              <p>Network features compound this: the account is two hops from <b>mule cluster S-19</b>, a previously confirmed laundering ring, via GAT-detected proximity (0.74).</p>
-              <p>Temporal features reinforce: the account had been <b>dormant for 217 days</b> and was reactivated only 21 hours before the burst — a textbook activation pattern.</p>
-            </>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+              Plain-English narrative will appear once the backend returns it for this case.
+            </div>
           )}
         </div>
       )}
 
-      <div>
-        <div style={{ font: "700 11px/1 'Manrope'", letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 10 }}>
-          Temporal & graph features
-        </div>
-        <div className="shap__features">
-          <div className="shap__feature is-alert"><div className="k">Burst score</div><div className="v">0.91 <small>/ 1.00</small></div></div>
-          <div className="shap__feature is-alert"><div className="k">Velocity · 1h</div><div className="v">12 <small>tx</small></div></div>
-          <div className="shap__feature"><div className="k">Dormancy</div><div className="v">217 <small>days</small></div></div>
-          <div className="shap__feature"><div className="k">Layering depth</div><div className="v">6 <small>hops</small></div></div>
-          <div className="shap__feature is-alert"><div className="k">PageRank</div><div className="v">0.084</div></div>
-          <div className="shap__feature"><div className="k">Flagged neighbours</div><div className="v">4</div></div>
-        </div>
-      </div>
-
       <div className="shap__fatf">
         <div style={{ font: "700 11px/1 'Manrope'", letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 6 }}>
-          FATF rules triggered
+          FATF rules triggered{rules.length > 0 ? ` · ${rules.length}` : ''}
         </div>
-        {WORKSPACE_CASE.fatfRules.map(r => (
+        {rules.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>No FATF rules attached.</div>
+        ) : rules.map(r => (
           <div key={r.code} className="ftab">
-            <span className="num">{r.code.split('-')[1]}</span>
+            <span className="num">{r.code.split('-')[1] ?? r.code}</span>
             <div className="body"><b>{r.title}</b><span>{r.note}</span></div>
           </div>
         ))}

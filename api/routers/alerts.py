@@ -26,9 +26,13 @@ VALID_ACTIONS = {"approve", "flag", "freeze"}
 
 def _load_risks() -> pd.DataFrame:
     path = os.path.join(DATA_DIR, "risk_scores.parquet")
-    if os.path.exists(path):
+    empty = pd.DataFrame(columns=["Account", "risk_score", "risk_label"])
+    if not os.path.exists(path):
+        return empty
+    try:
         return pd.read_parquet(path)
-    return pd.DataFrame(columns=["Account", "risk_score", "risk_label"])
+    except Exception:
+        return empty
 
 
 def _load_all_cases() -> list[dict]:

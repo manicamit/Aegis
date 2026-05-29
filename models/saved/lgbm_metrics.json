@@ -1,16 +1,16 @@
 {
-  "roc_auc": 0.9986965441866911,
-  "avg_precision": 0.9913258657862176,
-  "precision": 0,
-  "recall": 0.0,
-  "f1": 0.0,
-  "fp_rate": 0.0,
-  "alert_reduction": 1.0,
+  "roc_auc": 0.5829699625191364,
+  "avg_precision": 0.00427435051038001,
+  "precision": 0.008571428571428572,
+  "recall": 0.2,
+  "f1": 0.01643835616438356,
+  "fp_rate": 0.018318112231431136,
+  "alert_reduction": 0.9816818877685689,
   "confusion_matrix": {
-    "tn": 102249,
-    "fp": 0,
-    "fn": 767,
-    "tp": 0
+    "tn": 18596,
+    "fp": 347,
+    "fn": 12,
+    "tp": 3
   },
   "threshold": 0.5
 }

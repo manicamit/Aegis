@@ -17,6 +17,11 @@ CURRENCIES = ["US Dollar", "Rupees", "Euro", "UK Pound", "Bitcoin", "Yuan"]
 FORMATS = ["Cheque", "Wire", "ACH", "Reinvestment", "Credit Card"]
 
 
+def _acc(n: int) -> str:
+    """Format account ID as 9-char uppercase hex to match IBM AML layout."""
+    return f"{int(n):09X}"
+
+
 def generate_demo_data(
     num_legit: int = 50000,
     num_fraud_chains: int = 25,
@@ -35,10 +40,10 @@ def generate_demo_data(
     for i in range(num_legit):
         src_bank = np.random.choice(BANKS)
         dst_bank = np.random.choice(BANKS)
-        src_acc = np.random.randint(100000, 999999)
-        dst_acc = np.random.randint(100000, 999999)
+        src_acc = _acc(np.random.randint(100000, 999999))
+        dst_acc = _acc(np.random.randint(100000, 999999))
         while dst_acc == src_acc:
-            dst_acc = np.random.randint(100000, 999999)
+            dst_acc = _acc(np.random.randint(100000, 999999))
 
         amount = np.random.lognormal(mean=8, sigma=2)
         amount = max(10, min(amount, 5000000))
@@ -97,7 +102,7 @@ def generate_demo_data(
 def _gen_layering(chain_id, base_time, hops=7):
     """7-hop layering chain through intermediaries."""
     txns = []
-    accounts = [800000 + chain_id * 100 + i for i in range(hops + 1)]
+    accounts = [_acc(800000 + chain_id * 100 + i) for i in range(hops + 1)]
     amount = np.random.uniform(200000, 500000)
     for i in range(hops):
         txns.append({
@@ -119,8 +124,8 @@ def _gen_layering(chain_id, base_time, hops=7):
 def _gen_structuring(chain_id, base_time, count=8):
     """Multiple transfers just below ₹50k threshold."""
     txns = []
-    src = 810000 + chain_id * 10
-    dst = 810001 + chain_id * 10
+    src = _acc(810000 + chain_id * 10)
+    dst = _acc(810001 + chain_id * 10)
     for i in range(count):
         amount = np.random.uniform(45000, 49999)
         txns.append({
@@ -138,7 +143,7 @@ def _gen_structuring(chain_id, base_time, count=8):
 
 def _gen_round_trip(chain_id, base_time):
     """Circular transaction pattern A→B→C→A."""
-    accs = [820000 + chain_id * 10 + i for i in range(3)]
+    accs = [_acc(820000 + chain_id * 10 + i) for i in range(3)]
     amount = np.random.uniform(100000, 300000)
     txns = []
     for i in range(3):
@@ -157,13 +162,13 @@ def _gen_round_trip(chain_id, base_time):
 
 def _gen_dormant(chain_id, base_time):
     """Dormant account suddenly activated with large transfers."""
-    acc = 830000 + chain_id * 10
+    acc = _acc(830000 + chain_id * 10)
     txns = []
     # Old transaction 200+ days ago
     txns.append({
         "Timestamp": base_time - timedelta(days=np.random.randint(200, 400)),
         "From Bank": np.random.choice(BANKS), "Account": acc,
-        "To Bank": np.random.choice(BANKS), "Account.1": np.random.randint(100000, 999999),
+        "To Bank": np.random.choice(BANKS), "Account.1": _acc(np.random.randint(100000, 999999)),
         "Amount Received": 5000, "Receiving Currency": "Rupees",
         "Amount Paid": 5000, "Payment Currency": "Rupees",
         "Payment Format": "ACH", "Is Laundering": 0,
@@ -173,7 +178,7 @@ def _gen_dormant(chain_id, base_time):
         txns.append({
             "Timestamp": base_time + timedelta(minutes=np.random.randint(10, 120)),
             "From Bank": np.random.choice(BANKS),
-            "Account": np.random.randint(100000, 999999),
+            "Account": _acc(np.random.randint(100000, 999999)),
             "To Bank": np.random.choice(BANKS), "Account.1": acc,
             "Amount Received": np.random.uniform(50000, 200000), "Receiving Currency": "Rupees",
             "Amount Paid": np.random.uniform(50000, 200000), "Payment Currency": "Rupees",
@@ -184,10 +189,10 @@ def _gen_dormant(chain_id, base_time):
 
 def _gen_fan_in_fan_out(chain_id, base_time):
     """Multiple sources → mule → multiple destinations."""
-    mule = 840000 + chain_id * 10
+    mule = _acc(840000 + chain_id * 10)
     txns = []
     for i in range(6):
-        src = np.random.randint(100000, 799999)
+        src = _acc(np.random.randint(100000, 799999))
         txns.append({
             "Timestamp": base_time + timedelta(minutes=np.random.randint(0, 60)),
             "From Bank": np.random.choice(BANKS), "Account": src,
@@ -197,7 +202,7 @@ def _gen_fan_in_fan_out(chain_id, base_time):
             "Payment Format": "Wire", "Is Laundering": 1,
         })
     for i in range(4):
-        dst = np.random.randint(100000, 799999)
+        dst = _acc(np.random.randint(100000, 799999))
         txns.append({
             "Timestamp": base_time + timedelta(hours=1, minutes=np.random.randint(0, 60)),
             "From Bank": np.random.choice(BANKS), "Account": mule,

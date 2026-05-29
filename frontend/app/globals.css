@@ -80,8 +80,8 @@ input,textarea{font-family:inherit;color:inherit}
   min-width: 1280px;
 }
 .app{
-  width: 1244px;
-  min-height: calc(100vh - 36px);
+  width: 100%;
+  height: calc(100vh - 36px);
   background: var(--app);
   border-radius: var(--r-app);
   box-shadow: var(--shadow-app);

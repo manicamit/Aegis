@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Topbar } from '@/components/nav/Topbar';
 import { Icon } from '@/components/shared/Icon';
-import type { CaseRow, CaseStatus } from '@/lib/cases';
+import type { CaseRow, CaseStatus } from '@/lib/cases-shared';
 
 const STATUS_LABEL: Record<CaseStatus, [string, string]> = {
   'new':         ['complete', 'New'],
