@@ -1,7 +1,13 @@
 """
 AEGIS — Synthetic Pipeline Runner
-Generates synthetic demo data, runs it through all 5 pipeline stages
-using pre-trained IBM models (infer mode for stages 4 & 5).
+Generates synthetic demo data, runs it through all 6 pipeline stages.
+
+Trains its own GAT + LightGBM on the synthetic graph so that scores
+reflect the actual fraud patterns present, rather than borrowing the
+IBM-trained models whose feature distributions don't match.
+
+Synthetic models are saved to models/synthetic/ so the IBM-trained
+models in models/saved/ are never overwritten.
 
 Run from the project root:
     python run_synthetic_pipeline.py
@@ -18,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 SYNTHETIC_DIR = "data/synthetic"
 PROCESSED_DIR = "data/synthetic/processed"
-MODEL_DIR = "models/saved"
+MODEL_DIR = "models/synthetic"
 
 
 def main():
@@ -71,15 +77,15 @@ def main():
     idf = compute_identity_features(df)
     idf.to_parquet(f"{PROCESSED_DIR}/identity_features.parquet", index=False)
 
-    # ── Stage 4: Infer GAT embeddings (IBM-trained model) ────────────────────
-    logger.info("=== Stage 4: Inferring GAT embeddings ===")
+    # ── Stage 4: Train GAT on synthetic graph ──────────────────────────────────
+    logger.info("=== Stage 4: Training GAT on synthetic graph ===")
     from pipeline.stage4_gnn import run_stage4
-    run_stage4(data_dir=PROCESSED_DIR, model_dir=MODEL_DIR, mode="infer")
+    run_stage4(data_dir=PROCESSED_DIR, model_dir=MODEL_DIR, mode="train")
 
-    # ── Stage 5: Score accounts with LightGBM (IBM-trained model) ────────────
-    logger.info("=== Stage 5: Scoring accounts ===")
+    # ── Stage 5: Train LightGBM on synthetic features ────────────────────────
+    logger.info("=== Stage 5: Training LightGBM on synthetic features ===")
     from pipeline.stage5_fusion import run_stage5
-    run_stage5(data_dir=PROCESSED_DIR, model_dir=MODEL_DIR, mode="infer")
+    run_stage5(data_dir=PROCESSED_DIR, model_dir=MODEL_DIR, mode="train")
 
     # ── Stage 6: Build case dossiers for top-K flagged accounts ──────────────
     logger.info("=== Stage 6: Building case dossiers ===")
