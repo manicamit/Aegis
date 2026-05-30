@@ -99,7 +99,7 @@ def ingest(filepath: str, output_dir: str = "data/processed") -> pd.DataFrame:
     # Parse timestamps
     logger.info("Parsing timestamps...")
     df["Timestamp"] = pd.to_datetime(df["Timestamp"], format="mixed", dayfirst=False)
-    
+
     # Currency normalisation to INR
     logger.info("Normalising currencies to INR...")
     df["amount_inr"] = df.apply(
