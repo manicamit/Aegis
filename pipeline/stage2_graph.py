@@ -128,15 +128,18 @@ def graph_to_pyg_heterodata(G: nx.DiGraph, df: pd.DataFrame) -> "torch_geometric
         labels.append(attrs.get("is_laundering", 0))
     
     features = np.array(features, dtype=np.float32)
-    
-    # Normalise features (z-score)
+
+    # Normalise features (z-score); compute stats from this graph
     means = features.mean(axis=0)
     stds = features.std(axis=0) + 1e-8
     features = (features - means) / stds
-    
+
     data["account"].x = torch.tensor(features, dtype=torch.float32)
     data["account"].y = torch.tensor(labels, dtype=torch.long)
     data["account"].node_ids = account_nodes
+    # Attach norm stats so callers can save/reuse them
+    data["account"].norm_means = means
+    data["account"].norm_stds = stds
     
     # Edge index for TRANSFER edges
     src_indices = []
@@ -172,25 +175,32 @@ def graph_to_pyg_heterodata(G: nx.DiGraph, df: pd.DataFrame) -> "torch_geometric
 
 
 def save_graph(G: nx.DiGraph, data, node_to_idx: dict, output_dir: str = "data/processed"):
-    """Save graph artefacts."""
+    """Save graph artefacts including node-feature normalisation stats."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # Save NetworkX graph
     nx_path = os.path.join(output_dir, "transaction_graph.gpickle")
     with open(nx_path, "wb") as f:
         pickle.dump(G, f)
     logger.info(f"Saved NetworkX graph to {nx_path}")
-    
+
     # Save PyG data
     pyg_path = os.path.join(output_dir, "hetero_data.pt")
     torch.save(data, pyg_path)
     logger.info(f"Saved PyG HeteroData to {pyg_path}")
-    
+
     # Save node mapping
     mapping_path = os.path.join(output_dir, "node_mapping.pkl")
     with open(mapping_path, "wb") as f:
         pickle.dump(node_to_idx, f)
     logger.info(f"Saved node mapping to {mapping_path}")
+
+    # Save z-score stats so stage 4 infer mode can apply the training distribution
+    norm_path = os.path.join(output_dir, "graph_norm_stats.npz")
+    np.savez(norm_path,
+             means=data["account"].norm_means,
+             stds=data["account"].norm_stds)
+    logger.info(f"Saved graph norm stats to {norm_path}")
 
 
 def load_graph(data_dir: str = "data/processed"):

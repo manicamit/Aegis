@@ -186,57 +186,102 @@ def assemble_features(data_dir="data/processed"):
     return merged
 
 
-def run_stage5(data_dir="data/processed", model_dir="models/saved"):
-    """Train LightGBM fusion model on assembled features."""
+def run_stage5(data_dir="data/processed", model_dir="models/saved", mode="train"):
+    """
+    Train or run inference with the LightGBM fusion model.
+
+    mode="train"  — assemble features, train, evaluate, save model + risk scores
+    mode="infer"  — assemble features, load saved IBM model, score accounts,
+                    save risk scores (no training, no ground-truth evaluation)
+    """
     from models.lgbm_model import (
         train_fusion_model, evaluate_model,
-        get_risk_scores, save_lgbm_model,
+        get_risk_scores, save_lgbm_model, load_lgbm_model,
     )
-    
-    logger.info("=== AEGIS Stage 5 — LightGBM Fusion ===")
-    
+
+    logger.info(f"=== AEGIS Stage 5 — LightGBM Fusion ({mode}) ===")
+
     feature_df = assemble_features(data_dir)
-    
-    # Separate features and labels
+
     exclude_cols = {"Account", "is_fraud"}
     feature_cols = [c for c in feature_df.columns if c not in exclude_cols]
-    
+
     X = feature_df[feature_cols].values.astype(np.float32)
     y = feature_df["is_fraud"].values.astype(int)
     accounts = feature_df["Account"].values
-    
-    # Chronological split (80/20) — features are already sorted
-    split_idx = int(0.8 * len(X))
-    X_train, X_val = X[:split_idx], X[split_idx:]
-    y_train, y_val = y[:split_idx], y[split_idx:]
-    
-    logger.info(f"Train: {len(X_train):,} | Val: {len(X_val):,}")
-    logger.info(f"Train fraud: {y_train.sum():,} | Val fraud: {y_val.sum():,}")
-    
-    # Train
-    model = train_fusion_model(X_train, y_train, X_val, y_val,
-                                feature_names=feature_cols, use_smote=True)
-    
-    # Evaluate
-    metrics = evaluate_model(model, X_val, y_val, feature_names=feature_cols)
-    
-    # Generate risk scores for all accounts
-    risk_df = get_risk_scores(model, X, accounts.tolist())
-    risk_df.to_parquet(os.path.join(data_dir, "risk_scores.parquet"), index=False)
-    logger.info(f"Saved risk scores for {len(risk_df):,} accounts")
-    
-    # Save model
-    save_lgbm_model(model, metrics, feature_cols, model_dir)
-    
-    # Save feature matrix for SHAP
-    feature_df.to_parquet(os.path.join(data_dir, "feature_matrix.parquet"), index=False)
-    
+
+    if mode == "train":
+        split_idx = int(0.8 * len(X))
+        X_train, X_val = X[:split_idx], X[split_idx:]
+        y_train, y_val = y[:split_idx], y[split_idx:]
+
+        logger.info(f"Train: {len(X_train):,} | Val: {len(X_val):,}")
+        logger.info(f"Train fraud: {y_train.sum():,} | Val fraud: {y_val.sum():,}")
+
+        model = train_fusion_model(X_train, y_train, X_val, y_val,
+                                   feature_names=feature_cols, use_smote=True)
+
+        # Threshold tuned on val set via precision-recall curve
+        from sklearn.metrics import precision_recall_curve
+        y_prob_val = model.predict_proba(X_val)[:, 1]
+        precisions, recalls, thresholds = precision_recall_curve(y_val, y_prob_val)
+        f1_scores = (2 * precisions * recalls
+                     / (precisions + recalls + 1e-9))
+        best_threshold = float(thresholds[np.argmax(f1_scores[:-1])])
+        logger.info(f"Optimal threshold (max F1 on val): {best_threshold:.4f}")
+
+        metrics = evaluate_model(model, X_val, y_val,
+                                 threshold=best_threshold,
+                                 feature_names=feature_cols)
+        metrics["threshold"] = best_threshold
+
+        risk_df = get_risk_scores(model, X, accounts.tolist())
+        risk_df.to_parquet(os.path.join(data_dir, "risk_scores.parquet"), index=False)
+        logger.info(f"Saved risk scores for {len(risk_df):,} accounts")
+
+        save_lgbm_model(model, metrics, feature_cols, model_dir)
+        feature_df.to_parquet(os.path.join(data_dir, "feature_matrix.parquet"), index=False)
+
+    elif mode == "infer":
+        model, metrics, saved_feature_cols = load_lgbm_model(model_dir)
+        logger.info("Loaded saved LightGBM model for inference")
+
+        # Align feature columns to what the model was trained on
+        missing = [c for c in saved_feature_cols if c not in feature_df.columns]
+        extra   = [c for c in feature_cols if c not in saved_feature_cols]
+        if missing:
+            logger.warning(f"{len(missing)} features missing vs saved model — filling with 0: {missing[:5]}")
+            for c in missing:
+                feature_df[c] = 0.0
+        if extra:
+            logger.warning(f"{len(extra)} extra features dropped: {extra[:5]}")
+
+        X = feature_df[saved_feature_cols].values.astype(np.float32)
+
+        risk_df = get_risk_scores(model, X, accounts.tolist())
+        risk_df.to_parquet(os.path.join(data_dir, "risk_scores.parquet"), index=False)
+        logger.info(f"Saved risk scores for {len(risk_df):,} accounts")
+
+    else:
+        raise ValueError(f"mode must be 'train' or 'infer', got '{mode}'")
+
     logger.info("Stage 5 complete.")
     return model, metrics, risk_df
 
 
 if __name__ == "__main__":
-    model, metrics, risk_df = run_stage5()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["train", "infer"], default="train")
+    parser.add_argument("--data-dir", default="data/processed")
+    parser.add_argument("--model-dir", default="models/saved")
+    args = parser.parse_args()
+
+    model, metrics, risk_df = run_stage5(
+        data_dir=args.data_dir,
+        model_dir=args.model_dir,
+        mode=args.mode,
+    )
     print(f"\nStage 5 complete.")
     print(f"Top 10 highest risk accounts:")
     print(risk_df.head(10)[["Account", "risk_score", "risk_label"]].to_string())
