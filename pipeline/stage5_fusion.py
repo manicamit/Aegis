@@ -262,6 +262,9 @@ def run_stage5(data_dir="data/processed", model_dir="models/saved", mode="train"
         risk_df.to_parquet(os.path.join(data_dir, "risk_scores.parquet"), index=False)
         logger.info(f"Saved risk scores for {len(risk_df):,} accounts")
 
+        # Stage 6 needs feature_matrix.parquet; save it here too
+        feature_df.to_parquet(os.path.join(data_dir, "feature_matrix.parquet"), index=False)
+
     else:
         raise ValueError(f"mode must be 'train' or 'infer', got '{mode}'")
 
