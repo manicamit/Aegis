@@ -18,7 +18,10 @@ except ImportError:
 
 from api.middleware import limiter
 from api.auth import verify_token, authenticate_user, create_access_token
-from api.routers import alerts, graph, cases, metrics, escalations, health as health_router
+from api.routers import (
+    alerts, graph, cases, metrics, escalations,
+    health as health_router, audit, identity, admin,
+)
 from security.audit_logger import (
     load_pending_state, start_escalation_loop, stop_escalation_loop,
 )
@@ -75,6 +78,9 @@ app.include_router(cases.router, prefix="/api/v1/cases")
 app.include_router(metrics.router, prefix="/api/v1/metrics")
 app.include_router(escalations.router, prefix="/api/v1/escalations")
 app.include_router(health_router.router, prefix="/api/v1/health")
+app.include_router(audit.router, prefix="/api/v1/audit")
+app.include_router(identity.router, prefix="/api/v1/identity")
+app.include_router(admin.router, prefix="/api/v1/admin")
 
 
 @app.get("/health")
