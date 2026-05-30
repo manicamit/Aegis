@@ -12,11 +12,11 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-template}
       - MODEL_DIR=/app/models/saved
-      - DATA_DIR=/app/data/processed
+      - DATA_DIR=/app/data/synthetic/processed
       - AUDIT_LOG_PATH=/app/logs/audit.jsonl
     volumes:
       - ./models/saved:/app/models/saved:ro
-      - ./data/processed:/app/data/processed:ro
+      - ./data/synthetic/processed:/app/data/synthetic/processed:ro
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -35,11 +35,11 @@ services:
         condition: service_healthy
     environment:
       - API_BASE_URL=http://api:8000
-      - DATA_DIR=/app/data/processed
+      - DATA_DIR=/app/data/synthetic/processed
       - MODEL_DIR=/app/models/saved
       - DASH_DEBUG=false
     volumes:
-      - ./data/processed:/app/data/processed:ro
+      - ./data/synthetic/processed:/app/data/synthetic/processed:ro
       - ./models/saved:/app/models/saved:ro
 
   nginx:
