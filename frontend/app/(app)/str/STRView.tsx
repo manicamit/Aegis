@@ -78,7 +78,7 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
 
       <div className="page__body">
         <div className="str">
-          <div className="dossier-preview" style={{ maxHeight: 'none', padding: '30px 38px' }}>
+          <div className="dossier-preview" style={{ maxHeight: 'none' }}>
             <div className="doc-h">
               <div>
                 <h1>SUSPICIOUS TRANSACTION REPORT</h1>
@@ -172,7 +172,7 @@ export default function STRView({ dossier, narrative, plainEnglish }: STRViewPro
                 value={text}
                 onChange={(e) => { setText(e.target.value); setEdited(true); }}
                 style={{
-                  width: '100%', minHeight: 340, border: '1px solid var(--line)',
+                  width: '100%', minHeight: 180, border: '1px solid var(--line)',
                   borderRadius: 10, padding: '18px 20px', outline: 0, resize: 'vertical',
                   font: "500 13.5px/1.7 'Manrope', sans-serif", color: 'var(--ink)',
                   background: edited ? '#fffaf0' : '#fafbff',

@@ -35,17 +35,16 @@ function LoginForm() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!u || !p) { setErr('Enter both username and password to continue.'); return; }
     setBusy(true);
     setErr(null);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p }),
+        body: JSON.stringify({ role, username: u || role, password: p }),
       });
       const json = await res.json();
-      if (!res.ok) { setErr(json.error ?? 'Invalid credentials. Try again.'); return; }
+      if (!res.ok) { setErr(json.error ?? 'Sign-in failed. Try again.'); return; }
       const serverRole = json.role as UserRole;
       setSession(serverRole);
       router.push(ROLE_REDIRECTS[serverRole]);
@@ -82,7 +81,7 @@ function LoginForm() {
 
       <form className="login-card" onSubmit={submit}>
         <h3>{ROLE_GREETINGS[role]}</h3>
-        <p className="sub">Sign in with your AEGIS credentials to begin triage.</p>
+        <p className="sub">Pick a role to enter the workspace — credentials are optional for the demo.</p>
 
         {expired && (
           <div className="login-error" style={{ background: 'var(--warn-soft)', borderColor: '#f0d9a8', color: '#a96b16' }}>
@@ -121,7 +120,7 @@ function LoginForm() {
         </div>
 
         <div className="login-field">
-          <label>Username</label>
+          <label>Username <span style={{ font: "500 10px/1 'Manrope'", color: 'var(--ink-4)' }}>· optional</span></label>
           <div className="input">
             <span className="ic"><Icon name="user" size={16} /></span>
             <input value={u} onChange={e => setU(e.target.value)} placeholder="agent.smith" autoComplete="username" />
@@ -129,10 +128,10 @@ function LoginForm() {
         </div>
 
         <div className="login-field">
-          <label>Password</label>
+          <label>Password <span style={{ font: "500 10px/1 'Manrope'", color: 'var(--ink-4)' }}>· optional</span></label>
           <div className="input">
             <span className="ic"><Icon name="shield" size={16} /></span>
-            <input type="password" value={p} onChange={e => setP(e.target.value)} placeholder="••••••••••••" autoComplete="current-password" />
+            <input type="password" value={p} onChange={e => setP(e.target.value)} placeholder="leave blank to continue" autoComplete="current-password" />
           </div>
         </div>
 

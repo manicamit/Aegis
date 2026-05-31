@@ -67,68 +67,53 @@ export function AuditView({ initial }: Props) {
         subtitle="Hash-chained, tamper-evident log of every privileged action in AEGIS."
         breadcrumbs={[{ label: 'Home', href: '/alerts' }, { label: 'Admin' }, { label: 'Audit Trail' }]}
       >
-        <span className="tag is-warn" style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>Admin only</span>
+        <span className="tag is-warn">Admin only</span>
         <button className="btn btn--ghost"><Icon name="export" size={14} /> Export CSV</button>
       </Topbar>
 
       <div className="page__body">
-        <div className="audit-banner">
-          <div className="stat">
-            <div className="lbl">Total events</div>
-            <div className="v">{banner.totalEvents.toLocaleString()}</div>
-            <div className="sub">Across hash-chained log</div>
+        <div className="alert-banner">
+          <div className="alert-stat">
+            <span className="alert-stat__lbl">Total events</span>
+            <span className="alert-stat__val">{banner.totalEvents.toLocaleString()}</span>
+            <span className="alert-stat__delta">Across hash-chained log</span>
           </div>
-          <div className="stat is-chain">
-            <div className="lbl">Chain integrity</div>
-            <div className="v">{banner.verified ? 'Verified' : 'Broken'}</div>
-            <div className="sub">Head {banner.headBlock} · prev {banner.headPrev}</div>
+          <div className="alert-stat alert-stat--chain">
+            <span className="alert-stat__lbl">Chain integrity</span>
+            <span className="alert-stat__val">{banner.verified ? 'Verified' : 'Broken'}</span>
+            <span className="alert-stat__delta">Head {banner.headBlock} · prev {banner.headPrev}</span>
           </div>
-          <div className="stat">
-            <div className="lbl">Anomalies detected</div>
-            <div className="v">{banner.anomalies}</div>
-            <div className="sub" style={{ color: banner.verified ? 'var(--approved)' : 'var(--danger)' }}>
+          <div className="alert-stat">
+            <span className="alert-stat__lbl">Anomalies detected</span>
+            <span className="alert-stat__val">{banner.anomalies}</span>
+            <span className={'alert-stat__delta' + (banner.verified ? '' : ' is-down')}>
               {banner.verified ? 'No broken links' : `${banner.anomalies} suspect entries`}
-            </div>
+            </span>
           </div>
-          <div className="stat">
-            <div className="lbl">Verified window</div>
-            <div className="v">{integrity.verified_window.toLocaleString()}</div>
-            <div className="sub">Most recent entries</div>
+          <div className="alert-stat">
+            <span className="alert-stat__lbl">Verified window</span>
+            <span className="alert-stat__val">{integrity.verified_window.toLocaleString()}</span>
+            <span className="alert-stat__delta">Most recent entries</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 220px' }}>
-            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-4)' }}>
-              <Icon name="search" size={15} />
-            </span>
+        <div className="q-filters">
+          {FAMILIES.map(t => (
+            <button
+              key={t}
+              className={'q-filter ' + (family === t ? 'is-on' : '')}
+              onClick={() => { setFamily(t); setOffset(0); }}
+            >
+              {t === 'ALL' ? 'All events' : t}
+            </button>
+          ))}
+          <div className="q-search">
+            <Icon name="search" size={16} />
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               placeholder="Search actor, event, case ref…"
-              style={{
-                width: '100%', paddingLeft: 32, paddingRight: 12, height: 36,
-                border: '1px solid var(--line-strong)', borderRadius: 9,
-                font: "500 13px/1 'Manrope'", outline: 'none',
-                background: '#fff',
-              }}
             />
-          </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            {FAMILIES.map(t => (
-              <button
-                key={t}
-                onClick={() => { setFamily(t); setOffset(0); }}
-                style={{
-                  height: 32, padding: '0 12px', borderRadius: 7, cursor: 'pointer',
-                  font: "700 11px/1 'Manrope'", letterSpacing: '.06em',
-                  border: family === t ? '1px solid var(--brand)' : '1px solid var(--line-strong)',
-                  background: family === t ? 'var(--brand-soft)' : '#fff',
-                  color: family === t ? 'var(--brand-2)' : 'var(--ink-3)',
-                }}
-              >{t === 'ALL' ? 'All events' : t}</button>
-            ))}
           </div>
         </div>
 
@@ -138,7 +123,7 @@ export function AuditView({ initial }: Props) {
           </div>
         )}
 
-        <div className="audit-table">
+        <div className="q-table">
           <div className="audit-row is-head">
             <span>Timestamp</span>
             <span>Event</span>

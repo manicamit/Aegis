@@ -191,13 +191,47 @@ Graph Evidence:
 Write a concise STR narrative (2-3 sentences) for FIU submission. Be specific. Use professional regulatory language."""
 
 
+_STR_CACHE: Optional[Dict[str, str]] = None
+
+
+def _load_str_cache() -> Dict[str, str]:
+    """Lazy-load the pre-generated narrative cache from disk."""
+    global _STR_CACHE
+    if _STR_CACHE is not None:
+        return _STR_CACHE
+    path = os.environ.get("STR_CACHE", "data/precomputed/str_narratives.json")
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                _STR_CACHE = json.load(f)
+                logger.info("Loaded %d cached STR narratives from %s", len(_STR_CACHE), path)
+                return _STR_CACHE
+        except Exception as e:
+            logger.warning("Failed to read STR cache %s: %s", path, e)
+    _STR_CACHE = {}
+    return _STR_CACHE
+
+
 def generate_str_narrative(account_id, risk_score, shap_factors,
-                           transaction_summary, graph_evidence):
+                           transaction_summary, graph_evidence,
+                           case_id: Optional[str] = None):
     """Generate STR narrative using configured LLM provider with template fallback.
+
+    Resolution order:
+      1. Pre-generated cache at data/precomputed/str_narratives.json (keyed by case_id
+         or by account_id) — populated by scripts/precompute_narratives.py.
+      2. Live LLM call via LLM_PROVIDER (anthropic / openai / ollama).
+      3. Template fallback.
 
     LLM failures are pushed to the dead-letter queue (monitoring.heartbeat.dlq_push)
     so an operator can retry without losing the request.
     """
+    cache = _load_str_cache()
+    if cache:
+        for key in (case_id, account_id, f"AEGIS-{account_id}-{int(risk_score)}"):
+            if key and key in cache:
+                return cache[key]
+
     provider = os.environ.get("LLM_PROVIDER", "template").lower()
 
     prompt_data = {
@@ -394,9 +428,13 @@ def run_stage6(data_dir="data/processed", model_dir="models/saved", top_k=20):
             "n_branches": agg.get("unique_counterparties", 0),
         }
 
+        case_id_for_cache = (
+            agg.get("case_id") or f"AEGIS-{account_id}-{int(risk_score)}"
+        )
         narrative = generate_str_narrative(
             account_id, risk_score, explanation["factors"],
             tx_summary, graph_evidence,
+            case_id=case_id_for_cache,
         )
 
         case = build_case_dossier(

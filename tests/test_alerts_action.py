@@ -13,7 +13,6 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("AUDIT_LOG_PATH", str(tmp_path / "audit.jsonl"))
     monkeypatch.setenv("PENDING_ALERTS_PATH", str(tmp_path / "pending.jsonl"))
     monkeypatch.setenv("DLQ_LOG_PATH", str(tmp_path / "dlq.jsonl"))
-    monkeypatch.setenv("AEGIS_DEMO_MODE", "1")
     monkeypatch.setenv("HEARTBEAT_INTERVAL_SECONDS", "60")
 
     # Seed an aggregated case on disk

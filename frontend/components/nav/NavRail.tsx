@@ -35,6 +35,7 @@ const ADMIN_ITEMS = [
   { id: 'audit',      href: '/audit',      icon: 'chart',    label: 'Audit Trail' },
   { id: 'heartbeat',  href: '/heartbeat',  icon: 'activity', label: 'Service Health' },
   { id: 'escalation', href: '/escalation', icon: 'layers',   label: 'Escalation Queue' },
+  { id: 'train',      href: '/train',      icon: 'export',   label: 'Upload & Train' },
   { id: 'benchmarks', href: '/benchmarks', icon: 'spark',    label: 'Benchmarks' },
   { id: 'settings',   href: '/settings',   icon: 'cog',      label: 'Settings' },
 ];

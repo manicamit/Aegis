@@ -104,7 +104,7 @@ export default function EscalationPage() {
         subtitle="Live pending-alert registry from /api/v1/escalations. Auto-refreshes every 10s."
         breadcrumbs={[{ label: 'Home', href: '/alerts' }, { label: 'Admin' }, { label: 'Escalation Queue' }]}
       >
-        <span className="tag is-warn" style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>Admin only</span>
+        <span className="tag is-warn">Admin only</span>
         <button className="btn btn--ghost" onClick={() => void load()} disabled={loading}>
           <Icon name="spark" size={14} /> {loading ? 'Refreshing…' : 'Refresh'}
         </button>
@@ -117,30 +117,30 @@ export default function EscalationPage() {
           </div>
         )}
 
-        <div className="esc-banner">
-          <div className="stat amber">
-            <div className="lbl">Pending escalations</div>
-            <div className="v">{alerts.length}</div>
-            <div className="sub">SLA timeout {meta ? Math.round(meta.timeout_seconds / 60) : '—'} min</div>
+        <div className="alert-banner">
+          <div className="alert-stat alert-stat--amber">
+            <span className="alert-stat__lbl">Pending escalations</span>
+            <span className="alert-stat__val">{alerts.length}</span>
+            <span className="alert-stat__delta">SLA timeout {meta ? Math.round(meta.timeout_seconds / 60) : '—'} min</span>
           </div>
-          <div className="stat red">
-            <div className="lbl">SLA breach risk</div>
-            <div className="v">{redCt}</div>
-            <div className="sub">Under 4 h remaining</div>
+          <div className="alert-stat alert-stat--red">
+            <span className="alert-stat__lbl">SLA breach risk</span>
+            <span className="alert-stat__val">{redCt}</span>
+            <span className="alert-stat__delta is-down">Under 4 h remaining</span>
           </div>
-          <div className="stat brand">
-            <div className="lbl">Auto-escalated</div>
-            <div className="v">{escalatedCt}</div>
-            <div className="sub">Reassigned by background loop</div>
+          <div className="alert-stat alert-stat--brand">
+            <span className="alert-stat__lbl">Auto-escalated</span>
+            <span className="alert-stat__val">{escalatedCt}</span>
+            <span className="alert-stat__delta">Reassigned by background loop</span>
           </div>
-          <div className="stat green">
-            <div className="lbl">Roles in queue</div>
-            <div className="v">{new Set(alerts.map(a => a.assigned_role)).size}</div>
-            <div className="sub">Distinct currently assigned</div>
+          <div className="alert-stat alert-stat--green">
+            <span className="alert-stat__lbl">Roles in queue</span>
+            <span className="alert-stat__val">{new Set(alerts.map(a => a.assigned_role)).size}</span>
+            <span className="alert-stat__delta">Distinct currently assigned</span>
           </div>
         </div>
 
-        <div className="esc-table">
+        <div className="q-table">
           <div className="esc-row is-head">
             <span>SLA remaining</span>
             <span>Case</span>

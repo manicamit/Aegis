@@ -11,6 +11,7 @@ const PATH_TO_NAV_ID: Record<string, string> = {
   '/audit':      'audit',
   '/heartbeat':  'heartbeat',
   '/escalation': 'escalation',
+  '/train':      'train',
   '/benchmarks': 'benchmarks',
   '/settings':   'settings',
 };

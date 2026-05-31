@@ -172,7 +172,7 @@ export default function HeartbeatPage() {
         <span style={{ font: "600 11px/1 'JetBrains Mono'", color: 'var(--ink-4)', letterSpacing: '.06em' }}>
           Last refreshed {lastPing ? fmtTime(lastPing) : '—'}
         </span>
-        <span className="tag is-warn" style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase' }}>Admin only</span>
+        <span className="tag is-warn">Admin only</span>
         <button className="btn btn--ghost" onClick={() => void ping()} disabled={pinging}>
           <Icon name="spark" size={14} /> {pinging ? 'Pinging…' : 'Ping all'}
         </button>
@@ -240,14 +240,8 @@ export default function HeartbeatPage() {
           })}
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--line)' }}>
-            <h3 style={{ margin: 0, font: "700 15px/1 'Manrope'", color: 'var(--ink)' }}>Data Freshness</h3>
-            <p style={{ margin: '4px 0 0', font: "500 12px/1 'Manrope'", color: 'var(--ink-3)' }}>
-              Pipeline artefacts in <code style={{ fontFamily: "'JetBrains Mono'", fontSize: 11 }}>data/processed/</code>
-            </p>
-          </div>
-          <div className="df-row is-head">
+        <div className="q-table">
+          <div className="q-row is-head" style={{ gridTemplateColumns: '1.2fr 1fr 0.8fr 0.8fr 0.6fr' }}>
             <span>File</span><span>Last updated</span><span>Size</span><span>Status</span><span>Freshness</span>
           </div>
           {freshness.map((f) => (
@@ -266,21 +260,8 @@ export default function HeartbeatPage() {
           ))}
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 'var(--r-card)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h3 style={{ margin: 0, font: "700 15px/1 'Manrope'", color: 'var(--ink)' }}>
-                Dead Letter Queue
-                <span style={{ marginLeft: 8, font: "700 11px/1 'Manrope'", background: dlq.length ? 'var(--danger-soft)' : 'var(--approved-soft)', color: dlq.length ? '#b53848' : '#1a7d52', padding: '3px 8px', borderRadius: 6, letterSpacing: '.08em' }}>
-                  {dlq.length} {dlq.length === 1 ? 'entry' : 'entries'}
-                </span>
-              </h3>
-              <p style={{ margin: '4px 0 0', font: "500 12px/1 'Manrope'", color: 'var(--ink-3)' }}>
-                Failed background operations awaiting retry.
-              </p>
-            </div>
-          </div>
-          <div className="dlq-row is-head">
+        <div className="q-table">
+          <div className="q-row is-head" style={{ gridTemplateColumns: '90px 1fr 1fr 2fr 60px 110px' }}>
             <span>Time</span><span>Service</span><span>Operation</span><span>Error</span><span>Retries</span><span>Action</span>
           </div>
           {dlq.length === 0 && (

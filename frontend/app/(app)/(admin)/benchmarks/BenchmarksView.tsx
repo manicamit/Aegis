@@ -138,19 +138,18 @@ export default function BenchmarksView({ payload }: { payload: BenchmarkPayload 
 
       <div className="page__body">
         <div className="bench">
-          <div className="bench-kpis">
+          <div className="alert-banner" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
             {kpis.map(k => {
               const value  = k.row?.aegisStr ?? '—';
               const delta  = k.row?.delta    ?? '—';
               const better = k.row?.aegisBetter ?? null;
-              const trendColor = better === true ? 'var(--approved)' : better === false ? 'var(--danger)' : 'var(--ink-3)';
               return (
-                <div key={k.k} className={'bench-kpi ' + (better === false ? 'is-bad' : '')}>
-                  <div className="k">{k.k}</div>
-                  <div className="v">{value}</div>
-                  <div className="trend" style={{ color: trendColor }}>
+                <div key={k.k} className={'alert-stat' + (better === false ? ' alert-stat--red' : '')}>
+                  <span className="alert-stat__lbl">{k.k}</span>
+                  <span className="alert-stat__val">{value}</span>
+                  <span className={'alert-stat__delta' + (better === false ? ' is-down' : '')}>
                     {delta === '—' ? '—' : `${delta} vs rule`}
-                  </div>
+                  </span>
                   <SparkPlaceholder better={better} />
                 </div>
               );

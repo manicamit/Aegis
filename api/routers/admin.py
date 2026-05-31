@@ -4,7 +4,7 @@ Endpoints powering the Settings page: users, API keys, role/permission matrix,
 and system config. Persists API-key changes to a JSONL store.
 """
 from fastapi import APIRouter, Depends, Request, Body, HTTPException
-from api.auth import require_permission, ROLES, DEMO_USERS
+from api.auth import require_permission, ROLES
 from api.middleware import limiter
 from security.audit_logger import audit_log
 import hashlib
@@ -44,6 +44,15 @@ CAPABILITIES = [
 ADMIN_ONLY_CAPS = {"manage_users", "manage_api_keys"}
 ROLE_ORDER = ["analyst", "investigator", "admin"]
 
+# Display-only roster surfaced on the Settings → Users page. Auth no longer
+# uses these — login accepts any role with a blank password.
+SETTINGS_USERS = {
+    "admin":          {"role": "admin"},
+    "investigator":   {"role": "investigator"},
+    "analyst":        {"role": "analyst"},
+    "branch_manager": {"role": "branch_manager"},
+}
+
 
 def _initials(username: str) -> str:
     parts = username.replace(".", " ").replace("_", " ").replace("@", " ").split()
@@ -72,7 +81,7 @@ async def list_users(
 ):
     """List all known operator accounts."""
     rows = []
-    for username, info in DEMO_USERS.items():
+    for username, info in SETTINGS_USERS.items():
         rows.append({
             "username":   username,
             "name":       _display_name(username),
