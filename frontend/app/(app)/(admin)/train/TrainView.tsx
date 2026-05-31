@@ -182,7 +182,7 @@ export default function TrainView() {
                   padding: '36px 20px',
                   textAlign: 'center',
                   cursor: 'pointer',
-                  background: dragOver ? 'var(--brand-soft)' : 'var(--bg-canvas)',
+                  background: dragOver ? 'var(--brand-soft)' : '#fafbff',
                   transition: 'all .15s',
                 }}
               >
@@ -233,7 +233,7 @@ export default function TrainView() {
                       style={{
                         font: "600 11px/1 'JetBrains Mono'",
                         padding: '5px 10px',
-                        background: 'var(--bg-canvas)',
+                        background: '#f1f3fa',
                         border: '1px solid var(--line)',
                         borderRadius: 6,
                         color: 'var(--ink-2)',
@@ -261,7 +261,7 @@ export default function TrainView() {
 
               <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
                 <button
-                  className="btn btn--primary"
+                  className="btn btn--brand"
                   disabled={!file || phase === 'uploading'}
                   onClick={() => void handleUpload()}
                   style={{ padding: '10px 24px', borderRadius: 8, font: "700 13px/1 'Manrope'" }}
@@ -438,7 +438,7 @@ export default function TrainView() {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
-                className="btn btn--primary"
+                className="btn btn--brand"
                 onClick={() => router.push('/alerts')}
                 style={{ padding: '10px 20px', borderRadius: 8, font: "700 13px/1 'Manrope'" }}
               >

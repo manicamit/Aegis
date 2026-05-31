@@ -2278,9 +2278,9 @@ input,textarea{font-family:inherit;color:inherit}
 }
 .esc-row{
   display:grid;
-  grid-template-columns: 90px 1.3fr 1fr 1fr 1.1fr 1fr 130px;
-  align-items:center; gap:14px;
-  padding: 14px 20px; border-bottom: 1px solid var(--line);
+  grid-template-columns: 90px 1.3fr 1fr 0.8fr 1fr 0.8fr auto;
+  align-items:center; gap:12px;
+  padding: 12px 18px; border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
 .esc-row:last-child{ border-bottom: 0 }
@@ -2292,14 +2292,14 @@ input,textarea{font-family:inherit;color:inherit}
   display:flex; flex-direction:column; gap: 4px; align-items:flex-start;
 }
 .esc-row .urgency .clk{
-  font: 800 18px/1 'Space Grotesk'; letter-spacing:-.01em;
+  font: 700 14px/1 'Space Grotesk'; letter-spacing:-.01em;
   font-variant-numeric: tabular-nums;
 }
 .esc-row .urgency .tag{font-size: 9px; padding: 3px 6px; letter-spacing:.12em}
 .esc-row.urg-green .clk{ color: #1a7d52 }
 .esc-row.urg-amber .clk{ color: #a96b16 }
 .esc-row.urg-red   .clk{ color: var(--danger) }
-.esc-row.urg-red{ background: linear-gradient(90deg, var(--danger-soft) 0%, transparent 30%) }
+.esc-row.urg-red{ background: var(--danger-soft) }
 .esc-row .case b{ display:block; color: var(--ink); font-weight: 700 }
 .esc-row .case span{ display:block; color: var(--ink-3); font: 600 11px/1.3 'JetBrains Mono', monospace; margin-top: 3px }
 .esc-row .assigned{

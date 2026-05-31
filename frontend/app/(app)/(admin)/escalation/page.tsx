@@ -118,22 +118,22 @@ export default function EscalationPage() {
         )}
 
         <div className="alert-banner">
-          <div className="alert-stat alert-stat--amber">
+          <div className="alert-stat alert-stat--accent">
             <span className="alert-stat__lbl">Pending escalations</span>
             <span className="alert-stat__val">{alerts.length}</span>
             <span className="alert-stat__delta">SLA timeout {meta ? Math.round(meta.timeout_seconds / 60) : '—'} min</span>
           </div>
-          <div className="alert-stat alert-stat--red">
+          <div className="alert-stat">
             <span className="alert-stat__lbl">SLA breach risk</span>
-            <span className="alert-stat__val">{redCt}</span>
+            <span className="alert-stat__val" style={{ color: 'var(--danger)' }}>{redCt}</span>
             <span className="alert-stat__delta is-down">Under 4 h remaining</span>
           </div>
-          <div className="alert-stat alert-stat--brand">
+          <div className="alert-stat">
             <span className="alert-stat__lbl">Auto-escalated</span>
-            <span className="alert-stat__val">{escalatedCt}</span>
+            <span className="alert-stat__val" style={{ color: 'var(--brand-2)' }}>{escalatedCt}</span>
             <span className="alert-stat__delta">Reassigned by background loop</span>
           </div>
-          <div className="alert-stat alert-stat--green">
+          <div className="alert-stat">
             <span className="alert-stat__lbl">Roles in queue</span>
             <span className="alert-stat__val">{new Set(alerts.map(a => a.assigned_role)).size}</span>
             <span className="alert-stat__delta">Distinct currently assigned</span>
@@ -176,15 +176,7 @@ export default function EscalationPage() {
                 >
                   <div className="urgency">
                     <span className="clk">{fmtSla(r.sla_remaining_seconds)}</span>
-                    <span
-                      className={'tag urg-' + urg}
-                      style={{
-                        fontSize: 9, padding: '3px 6px', borderRadius: 5,
-                        letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 700,
-                        background: urg === 'red' ? 'var(--danger-soft)' : urg === 'amber' ? 'var(--warn-soft)' : 'var(--approved-soft)',
-                        color: urg === 'red' ? '#b53848' : urg === 'amber' ? '#a96b16' : '#1a7d52',
-                      }}
-                    >
+                    <span className={'tag ' + (urg === 'red' ? 'is-danger' : urg === 'amber' ? 'is-warn' : 'is-approved')}>
                       {urg === 'red' ? 'Breach risk' : urg === 'amber' ? 'Watch' : 'On track'}
                     </span>
                   </div>
@@ -206,15 +198,9 @@ export default function EscalationPage() {
                       {r.escalated ? 'Auto-escalated' : 'Pending'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <div>
                     {priority != null && (
-                      <span style={{
-                        fontSize: 10, padding: '3px 7px', borderRadius: 5,
-                        background: 'var(--brand-soft)', color: 'var(--brand-2)',
-                        fontWeight: 700, letterSpacing: '.06em',
-                      }}>
-                        priority {Math.round(priority * 100)}
-                      </span>
+                      <span className="tag">priority {Math.round(priority * 100)}</span>
                     )}
                   </div>
                   <div
