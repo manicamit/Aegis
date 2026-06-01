@@ -11,12 +11,12 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-template}
-      - MODEL_DIR=/app/models/saved
-      - DATA_DIR=/app/data/processed
+      - MODEL_DIR=/app/models/synthetic
+      - DATA_DIR=/app/data/synthetic/processed
       - AUDIT_LOG_PATH=/app/logs/audit.jsonl
     volumes:
-      - ./models/saved:/app/models/saved:ro
-      - ./data/processed:/app/data/processed:ro
+      - ./models/synthetic:/app/models/synthetic:ro
+      - ./data/synthetic/processed:/app/data/synthetic/processed:ro
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -35,12 +35,12 @@ services:
         condition: service_healthy
     environment:
       - API_BASE_URL=http://api:8000
-      - DATA_DIR=/app/data/processed
-      - MODEL_DIR=/app/models/saved
+      - DATA_DIR=/app/data/synthetic/processed
+      - MODEL_DIR=/app/models/synthetic
       - DASH_DEBUG=false
     volumes:
-      - ./data/processed:/app/data/processed:ro
-      - ./models/saved:/app/models/saved:ro
+      - ./data/synthetic/processed:/app/data/synthetic/processed:ro
+      - ./models/synthetic:/app/models/synthetic:ro
 
   nginx:
     image: nginx:alpine

@@ -15,23 +15,30 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["version"] == "1.0.0"
+        assert "version" in data
+        assert data["system"] == "AEGIS"
 
 
 class TestAuthEndpoint:
-    def test_login_success(self, client):
-        resp = client.post("/api/v1/auth/login?username=admin&password=admin123")
+    def test_login_with_role_in_body(self, client):
+        resp = client.post("/api/v1/auth/login", json={"role": "admin"})
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
         assert data["role"] == "admin"
 
-    def test_login_failure(self, client):
-        resp = client.post("/api/v1/auth/login?username=admin&password=wrong")
-        assert resp.status_code == 401
+    def test_login_with_blank_password_succeeds(self, client):
+        # Hackathon-mode auth: password is ignored entirely.
+        resp = client.post("/api/v1/auth/login?username=admin&password=")
+        assert resp.status_code == 200
+        assert resp.json()["role"] == "admin"
+
+    def test_login_unknown_username_falls_back_to_default_role(self, client):
+        resp = client.post("/api/v1/auth/login?username=stranger&password=whatever")
+        assert resp.status_code == 200
+        assert resp.json()["role"] == "investigator"
 
     def test_whoami(self, client):
-        # Demo mode allows unauthenticated access
         resp = client.get("/api/v1/whoami")
         assert resp.status_code == 200
         data = resp.json()

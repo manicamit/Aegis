@@ -1,12 +1,17 @@
 """
 AEGIS — FastAPI Authentication
-JWT token management and RBAC enforcement.
+
+HACKATHON DEMO AUTH — NO PASSWORD VALIDATION.
+
+Login accepts a role (and optional display username); any submitted password
+is ignored. The backend issues a JWT scoped to the requested role and RBAC
+remains fully enforced on every router via `require_permission`.
+
+Replace with a real credential store before any non-demo deployment.
 """
 from fastapi import HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-import hashlib
-import hmac
 import os
 from datetime import datetime, timedelta
 
@@ -23,28 +28,24 @@ EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "60"))
 security = HTTPBearer(auto_error=False)
 
 ROLES = {
-    "investigator": ["read:alerts", "read:cases", "write:cases"],
-    "analyst":      ["read:alerts", "read:cases"],
-    "admin":        ["read:alerts", "read:cases", "write:cases",
-                     "write:config", "read:metrics"],
+    "branch_manager": ["read:alerts", "write:alert_action", "read:cases"],
+    "investigator":   ["read:alerts", "read:cases", "write:cases",
+                       "write:alert_action"],
+    "analyst":        ["read:alerts", "read:cases", "read:metrics"],
+    "admin":          ["read:alerts", "read:cases", "write:cases",
+                       "write:config", "read:metrics", "write:alert_action",
+                       "manage:escalation", "manage:dlq"],
 }
 
-
-def _hash_password(password: str) -> str:
-    """Simple HMAC-SHA256 password hashing for demo purposes."""
-    return hmac.new(SECRET_KEY.encode(), password.encode(), hashlib.sha256).hexdigest()
+DEFAULT_ROLE = "investigator"
 
 
-def _verify_password(password: str, hashed: str) -> bool:
-    return hmac.compare_digest(_hash_password(password), hashed)
-
-
-# Demo users (in production, use a proper password store)
-DEMO_USERS = {
-    "admin": {"password_hash": _hash_password("admin123"), "role": "admin"},
-    "investigator": {"password_hash": _hash_password("invest123"), "role": "investigator"},
-    "analyst": {"password_hash": _hash_password("analyst123"), "role": "analyst"},
-}
+def _resolve_role(role: str | None, username: str | None) -> str:
+    """Map the submitted role (or fall-back username) to a known role."""
+    for candidate in (role, username):
+        if candidate and candidate in ROLES:
+            return candidate
+    return DEFAULT_ROLE
 
 
 def create_access_token(data: dict, role: str) -> str:
@@ -58,9 +59,16 @@ def create_access_token(data: dict, role: str) -> str:
 def verify_token(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ) -> dict:
+    # Test-only bypass: pytest conftest sets AEGIS_TEST_AUTH_BYPASS=1 so the
+    # TestClient can hit protected routes without minting tokens for every call.
+    # This env var is NEVER set in production.
+    if os.environ.get("AEGIS_TEST_AUTH_BYPASS") == "1":
+        return {"sub": "tests", "role": "admin"}
     if credentials is None:
-        # Allow unauthenticated access for demo
-        return {"sub": "demo", "role": "admin"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+        )
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
@@ -83,8 +91,15 @@ def require_permission(permission: str):
     return checker
 
 
-def authenticate_user(username: str, password: str) -> dict:
-    user = DEMO_USERS.get(username)
-    if not user or not _verify_password(password, user["password_hash"]):
-        return None
-    return {"username": username, "role": user["role"]}
+def authenticate_user(username: str | None = None,
+                      password: str | None = None,
+                      role: str | None = None) -> dict:
+    """Hackathon demo auth: any submission yields a valid session.
+
+    The submitted password is ignored entirely. The role is resolved from the
+    explicit `role` argument first, then from `username` (which the login UI
+    may use as the role identifier), then falls back to `investigator`.
+    """
+    resolved_role = _resolve_role(role, username)
+    display_name = (username or resolved_role).strip() or resolved_role
+    return {"username": display_name, "role": resolved_role}
