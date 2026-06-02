@@ -15,8 +15,9 @@ services:
       - DATA_DIR=/app/data/synthetic/processed
       - AUDIT_LOG_PATH=/app/logs/audit.jsonl
     volumes:
-      - ./models/synthetic:/app/models/synthetic:ro
-      - ./data/synthetic/processed:/app/data/synthetic/processed:ro
+      - ./models/synthetic:/app/models/synthetic
+      - ./data/synthetic/processed:/app/data/synthetic/processed
+      - ./data/uploads:/app/data/uploads
       - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
