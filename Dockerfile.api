@@ -18,7 +18,8 @@ COPY api/ ./api/
 COPY security/ ./security/
 COPY monitoring/ ./monitoring/
 
-RUN useradd -m -u 1000 aegis && chown -R aegis:aegis /app
+RUN mkdir -p data/uploads data/synthetic models/checkpoints \
+    && useradd -m -u 1000 aegis && chown -R aegis:aegis /app
 USER aegis
 
 EXPOSE 8000
