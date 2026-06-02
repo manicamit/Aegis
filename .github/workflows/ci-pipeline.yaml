@@ -18,10 +18,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure SSH
+        # EC2_SSH_KEY must be the base64 of the .pem (single line). base64 decode
+        # is immune to the newline/whitespace mangling that breaks raw PEM secrets
+        # ("error in libcrypto"). Generate with: base64 -w0 your-key.pem
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
+            echo "EC2_SSH_KEY is not a valid private key after base64 decode."
+            echo "Set it with: base64 -w0 your-key.pem  (paste the whole output)."
+            exit 1
+          fi
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Sync code to EC2 
