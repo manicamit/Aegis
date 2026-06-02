@@ -83,7 +83,7 @@ jobs:
           COMPOSE="sudo env COMPOSE_BAKE=false docker compose -f docker-compose.prod.yml"
 
           # 1. Ensure runtime dirs + secret exist (idempotent).
-          mkdir -p logs data/synthetic/processed models/synthetic
+          mkdir -p logs data/synthetic/processed models/synthetic data/uploads
           if [ ! -f .env ]; then
             printf 'SECRET_KEY=%s\nLLM_PROVIDER=template\n' \
               "$(python3 -c 'import secrets;print(secrets.token_hex(32))')" > .env
