@@ -21,10 +21,20 @@ const ROLE_GREETINGS: Record<UserRole, string> = {
   branch_manager: 'Welcome back, branch manager.',
 };
 
+// Demo credentials, pre-filled so reviewers can sign in with one click.
+// Picking a role above swaps these to the matching account. (The backend is
+// role-based for the demo, so any password is accepted — these are for show.)
+const DEMO_CREDS: Record<UserRole, { username: string; password: string }> = {
+  branch_manager: { username: 'branch_manager', password: 'branch123' },
+  investigator:   { username: 'investigator',   password: 'invest123' },
+  analyst:        { username: 'analyst',         password: 'analyst123' },
+  admin:          { username: 'admin',           password: 'admin123' },
+};
+
 function LoginForm() {
-  const [u, setU]               = useState('');
-  const [p, setP]               = useState('');
-  const [role, setRole]         = useState<UserRole>('investigator');
+  const [u, setU]               = useState(DEMO_CREDS.admin.username);
+  const [p, setP]               = useState(DEMO_CREDS.admin.password);
+  const [role, setRole]         = useState<UserRole>('admin');
   const [remember, setRemember] = useState(true);
   const [err, setErr]           = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
@@ -83,6 +93,10 @@ function LoginForm() {
         <h3>{ROLE_GREETINGS[role]}</h3>
         <p className="sub">Pick a role to enter the workspace — credentials are optional for the demo.</p>
 
+        <div className="login-error" style={{ background: 'var(--brand-soft)', borderColor: 'var(--brand)', color: 'var(--brand-2)' }}>
+          <Icon name="shield" size={16} /> Demo access — credentials are pre-filled (<strong>&nbsp;{DEMO_CREDS[role].username}&nbsp;/&nbsp;{DEMO_CREDS[role].password}&nbsp;</strong>). Just press <strong>&nbsp;Sign in</strong>, or pick a role above to switch accounts.
+        </div>
+
         {expired && (
           <div className="login-error" style={{ background: 'var(--warn-soft)', borderColor: '#f0d9a8', color: '#a96b16' }}>
             <Icon name="bell" size={16} /> Your session expired. Please sign in again.
@@ -102,7 +116,12 @@ function LoginForm() {
               <button
                 key={r.id}
                 type="button"
-                onClick={() => setRole(r.id)}
+                onClick={() => {
+                  setRole(r.id);
+                  setU(DEMO_CREDS[r.id].username);
+                  setP(DEMO_CREDS[r.id].password);
+                  setErr(null);
+                }}
                 style={{
                   padding: '10px 8px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
                   border: role === r.id ? '2px solid var(--brand)' : '1.5px solid var(--line-strong)',
@@ -123,7 +142,7 @@ function LoginForm() {
           <label>Username <span style={{ font: "500 10px/1 'Manrope'", color: 'var(--ink-4)' }}>· optional</span></label>
           <div className="input">
             <span className="ic"><Icon name="user" size={16} /></span>
-            <input value={u} onChange={e => setU(e.target.value)} placeholder="agent.smith" autoComplete="username" />
+            <input value={u} onChange={e => setU(e.target.value)} placeholder={DEMO_CREDS[role].username} autoComplete="username" />
           </div>
         </div>
 
@@ -131,7 +150,7 @@ function LoginForm() {
           <label>Password <span style={{ font: "500 10px/1 'Manrope'", color: 'var(--ink-4)' }}>· optional</span></label>
           <div className="input">
             <span className="ic"><Icon name="shield" size={16} /></span>
-            <input type="password" value={p} onChange={e => setP(e.target.value)} placeholder="leave blank to continue" autoComplete="current-password" />
+            <input type="password" value={p} onChange={e => setP(e.target.value)} placeholder={DEMO_CREDS[role].password} autoComplete="current-password" />
           </div>
         </div>
 

@@ -1,0 +1,98 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30          
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync code to EC2 
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude 'frontend/.next' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude 'venv' --exclude '.venv' \
+            --exclude 'logs' \
+            --exclude '*.csv' \
+            --exclude '.env' \
+            --exclude 'data/synthetic/processed' \
+            --exclude 'models/synthetic' \
+            ./ "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/aegis/"
+
+      - name: Build, seed data, deploy, and health-check
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd ~/aegis
+
+          COMPOSE="sudo env COMPOSE_BAKE=false docker compose -f docker-compose.prod.yml"
+
+          # 1. Ensure runtime dirs + secret exist (idempotent).
+          mkdir -p logs data/synthetic/processed models/synthetic
+          if [ ! -f .env ]; then
+            printf 'SECRET_KEY=%s\nLLM_PROVIDER=template\n' \
+              "$(python3 -c 'import secrets;print(secrets.token_hex(32))')" > .env
+          fi
+
+          # 2. Build images. The pip/torch layer is cached unless requirements.txt
+          #    changes, so this is fast on normal deploys.
+          echo "::group::docker build"
+          $COMPOSE build
+          echo "::endgroup::"
+
+          # 3. Generate the synthetic dataset + train models ONCE. Skipped on every
+          #    subsequent deploy because the artifacts are preserved across syncs.
+          if [ ! -f data/synthetic/processed/risk_scores.parquet ]; then
+            echo "Seeding synthetic dataset (first deploy only)..."
+            sudo docker run --rm -v "$HOME/aegis:/app" -w /app \
+              aegis-api:latest python run_synthetic_pipeline.py
+          else
+            echo "Synthetic dataset present - skipping generation."
+          fi
+
+          # 4. (Re)start the stack.
+          $COMPOSE up -d
+
+          # 5. Health gate - fail the deploy if the API never becomes healthy.
+          echo "Waiting for API health..."
+          for i in $(seq 1 30); do
+            status="$(sudo docker inspect -f '{{.State.Health.Status}}' aegis-api-1 2>/dev/null || echo starting)"
+            if [ "$status" = "healthy" ]; then echo "API healthy."; break; fi
+            if [ "$i" -eq 30 ]; then
+              echo "API did not become healthy in time. Recent logs:"
+              sudo docker logs --tail 50 aegis-api-1 || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+          # 6. Smoke-test the public entrypoint.
+          curl -fsS -o /dev/null -w 'frontend /login -> HTTP %{http_code}\n' http://localhost/login
+
+          # 7. Protect the disk - drop dangling images and build cache.
+          sudo docker image prune -f >/dev/null 2>&1 || true
+          sudo docker builder prune -f >/dev/null 2>&1 || true
+
+          echo "Deploy complete."
+          REMOTE
