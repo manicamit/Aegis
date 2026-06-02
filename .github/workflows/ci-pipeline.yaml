@@ -12,19 +12,41 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30          
+    timeout-minutes: 30
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check deploy configuration
+        id: deploy_config
+        run: |
+          missing=()
+          [ -n "$EC2_HOST" ] || missing+=("EC2_HOST")
+          [ -n "$EC2_USER" ] || missing+=("EC2_USER")
+          [ -n "$EC2_SSH_KEY" ] || missing+=("EC2_SSH_KEY")
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::notice title=Deploy skipped::Missing required secrets: ${missing[*]}"
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+
       - name: Configure SSH
+        if: steps.deploy_config.outputs.should_deploy == 'true'
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Sync code to EC2 
+      - name: Sync code to EC2
+        if: steps.deploy_config.outputs.should_deploy == 'true'
         run: |
           rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
             --exclude '.git' \
@@ -38,11 +60,12 @@ jobs:
             --exclude '.env' \
             --exclude 'data/synthetic/processed' \
             --exclude 'models/synthetic' \
-            ./ "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/aegis/"
+            ./ "$EC2_USER@$EC2_HOST:~/aegis/"
 
       - name: Build, seed data, deploy, and health-check
+        if: steps.deploy_config.outputs.should_deploy == 'true'
         run: |
-          ssh -i ~/.ssh/deploy_key "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'bash -s' <<'REMOTE'
+          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           cd ~/aegis
 
