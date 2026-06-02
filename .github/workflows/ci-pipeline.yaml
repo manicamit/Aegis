@@ -18,16 +18,32 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure SSH
-        # EC2_SSH_KEY must be the base64 of the .pem (single line). base64 decode
-        # is immune to the newline/whitespace mangling that breaks raw PEM secrets
-        # ("error in libcrypto"). Generate with: base64 -w0 your-key.pem
+        # EC2_SSH_KEY may be EITHER the base64 of the .pem (base64 -w0 your-key.pem)
+        # OR the raw PEM text. We try base64-decode first; if that doesn't yield a
+        # valid key, we fall back to using the secret verbatim as a PEM. This is
+        # robust to the newline mangling that breaks raw-PEM secrets.
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1; then
-            echo "EC2_SSH_KEY is not a valid private key after base64 decode."
-            echo "Set it with: base64 -w0 your-key.pem  (paste the whole output)."
+          KEY=~/.ssh/deploy_key
+          # Try base64 first; chmod BEFORE validating (ssh-keygen rejects 0644 keys).
+          if printf '%s' "$EC2_SSH_KEY" | base64 -d > "$KEY" 2>/dev/null; then
+            chmod 600 "$KEY"
+            if ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
+              echo "Loaded SSH key from base64-encoded secret."
+            else
+              printf '%s\n' "$EC2_SSH_KEY" > "$KEY"; chmod 600 "$KEY"
+              echo "Base64 decode did not yield a key; using secret as raw PEM."
+            fi
+          else
+            printf '%s\n' "$EC2_SSH_KEY" > "$KEY"; chmod 600 "$KEY"
+            echo "Using secret as raw PEM."
+          fi
+          if ! ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
+            echo "EC2_SSH_KEY is not a valid private key (tried base64 and raw PEM)."
+            echo "Fix: set it to the output of  base64 -w0 your-key.pem  (single line),"
+            echo "or paste the full .pem including the BEGIN/END lines."
             exit 1
           fi
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
