@@ -27,17 +27,27 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           KEY=~/.ssh/deploy_key
-          # Try base64 first; chmod BEFORE validating (ssh-keygen rejects 0644 keys).
-          if printf '%s' "$EC2_SSH_KEY" | base64 -d > "$KEY" 2>/dev/null; then
+          # 1. Try base64-decode: only accept result if it contains a PEM header.
+          DECODED=$(printf '%s' "$EC2_SSH_KEY" | base64 -d 2>/dev/null || true)
+          if echo "$DECODED" | grep -q "BEGIN"; then
+            printf '%s\n' "$DECODED" > "$KEY"
             chmod 600 "$KEY"
-            if ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
-              echo "Loaded SSH key from base64-encoded secret."
-            else
-              printf '%s\n' "$EC2_SSH_KEY" > "$KEY"; chmod 600 "$KEY"
-              echo "Base64 decode did not yield a key; using secret as raw PEM."
-            fi
+            echo "Loaded SSH key from base64-encoded secret."
           else
-            printf '%s\n' "$EC2_SSH_KEY" > "$KEY"; chmod 600 "$KEY"
+            # 2. Raw PEM path: restore newlines that GitHub Actions may have
+            #    mangled — replace literal \n sequences, then split the key body
+            #    (everything between the header and footer lines) onto its own lines.
+            printf '%s' "$EC2_SSH_KEY" \
+              | sed 's/\\n/\n/g' \
+              | awk '{
+                  if (/^-----BEGIN/) { print; next }
+                  if (/^-----END/)   { print; next }
+                  # body may be one long line with embedded spaces — split on spaces
+                  n = split($0, a, " ")
+                  for (i=1; i<=n; i++) if (a[i] != "") print a[i]
+                }' \
+              > "$KEY"
+            chmod 600 "$KEY"
             echo "Using secret as raw PEM."
           fi
           if ! ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
@@ -111,7 +121,17 @@ jobs:
             sleep 5
           done
 
-          # 6. Smoke-test the public entrypoint.
+          # 6. Wait for nginx/frontend to accept connections, then smoke-test.
+          echo "Waiting for frontend..."
+          for i in $(seq 1 24); do
+            if curl -sf -o /dev/null http://localhost/login 2>/dev/null; then break; fi
+            if [ "$i" -eq 24 ]; then
+              echo "Frontend did not become reachable in time."
+              sudo docker logs --tail 30 aegis-frontend-1 || true
+              exit 1
+            fi
+            sleep 5
+          done
           curl -fsS -o /dev/null -w 'frontend /login -> HTTP %{http_code}\n' http://localhost/login
 
           # 7. Protect the disk - drop dangling images and build cache.
