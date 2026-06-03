@@ -17,6 +17,7 @@ COPY features/ ./features/
 COPY api/ ./api/
 COPY security/ ./security/
 COPY monitoring/ ./monitoring/
+COPY dashboard/ ./dashboard/
 
 RUN mkdir -p data/uploads data/synthetic models/checkpoints \
     && useradd -m -u 1000 aegis && chown -R aegis:aegis /app
