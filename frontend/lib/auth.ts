@@ -19,6 +19,6 @@ export function clearSession(): void {
 export const ROLE_REDIRECTS: Record<UserRole, string> = {
   investigator: '/alerts',
   analyst: '/alerts',
-  admin: '/escalation',
+  admin: '/train',
   branch_manager: '/mobile',
 };

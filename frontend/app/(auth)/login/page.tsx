@@ -93,8 +93,14 @@ function LoginForm() {
         <h3>{ROLE_GREETINGS[role]}</h3>
         <p className="sub">Pick a role to enter the workspace — credentials are optional for the demo.</p>
 
-        <div className="login-error" style={{ background: 'var(--brand-soft)', borderColor: 'var(--brand)', color: 'var(--brand-2)' }}>
-          <Icon name="shield" size={16} /> Demo access — credentials are pre-filled (<strong>&nbsp;{DEMO_CREDS[role].username}&nbsp;/&nbsp;{DEMO_CREDS[role].password}&nbsp;</strong>). Just press <strong>&nbsp;Sign in</strong>, or pick a role above to switch accounts.
+        <div className="login-info-box" style={{ background: 'var(--brand-soft)', borderColor: 'var(--brand)', color: 'var(--brand-2)' }}>
+          <Icon name="shield" size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>Demo access — credentials are pre-filled (<strong>{DEMO_CREDS[role].username} / {DEMO_CREDS[role].password}</strong>). Just press <strong>Sign in</strong>, or pick a role above to switch accounts.</span>
+        </div>
+
+        <div className="login-info-box" style={{ background: 'var(--brand-soft)', borderColor: 'var(--brand)', color: 'var(--brand-2)' }}>
+          <Icon name="export" size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span>To test out the pipeline by uploading your own CSV, use the <strong>admin</strong> role. Here is the <a href="https://gist.github.com/tarun-varier/745f0ff6bf8fdc39f4543c9938bc172d" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-2)', textDecoration: 'underline' }}>demo data generation script</a>.</span>
         </div>
 
         {expired && (

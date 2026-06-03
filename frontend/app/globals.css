@@ -821,6 +821,15 @@ input,textarea{font-family:inherit;color:inherit}
   margin-bottom: 18px;
   border:1px solid #f3c2c9;
 }
+.login-info-box{
+  display:flex; align-items:flex-start; gap:10px;
+  padding:10px 14px; border-radius:10px;
+  font: 600 13px/1.45 'Manrope';
+  margin-bottom: 10px;
+  border:1px solid;
+}
+.login-info-box a{ color:inherit; text-decoration:underline; text-underline-offset:2px; }
+.login-info-box a:hover{ opacity:.75; }
 .login-foot{
   display:flex; justify-content:space-between;
   margin-top: 32px;
